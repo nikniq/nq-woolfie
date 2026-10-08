@@ -1,0 +1,23 @@
+*{box-sizing:border-box;font-family:Inter,system-ui,Arial,sans-serif}
+body{background:#111;color:#eee;margin:16px}
+.site-header{display:flex;align-items:baseline;gap:24px;margin-bottom:12px}
+.site-header h1{margin:0}
+.site-header h1 a{color:inherit;text-decoration:none}
+.site-header nav a{color:#9cf;margin-right:12px;text-decoration:none}
+.site-header nav a.active{color:#fff;font-weight:600;text-decoration:underline}
+#gameWrap{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}
+canvas{background:#222;border:6px solid #333;image-rendering:pixelated;max-width:100%}
+#hud{width:260px}
+#status{background:#0b0b0b;padding:8px;border:1px solid #222;margin-bottom:8px}
+#controls{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0}
+#levelLabel{font-weight:600}
+#timer{font-variant-numeric:tabular-nums;color:#ffdd00}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;font-size:14px}
+.field input{padding:6px;background:#0b0b0b;border:1px solid #333;color:#fff}
+#info{white-space:pre-wrap;padding:8px;background:#0b0b0b;border:1px solid #222;height:240px;overflow:auto}
+button{margin-top:8px;padding:8px 10px;background:#2b2b2b;border:1px solid #444;color:#fff;cursor:pointer}
+.leaderboard table{border-collapse:collapse;min-width:420px;margin-bottom:20px}
+.leaderboard th,.leaderboard td{text-align:left;padding:6px 10px;border-bottom:1px solid #222}
+.leaderboard h2{font-size:18px;margin:20px 0 8px}
+.muted{color:#888}
+.stats strong{color:#ffdd00}
