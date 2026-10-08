@@ -3,6 +3,7 @@
 // are posted to /api/runs so the leaderboard can rank escapes.
 
 const TILE = 32;
+const SCALE = 2; // internal render scale: crisp sprites and text when the canvas is displayed large
 const FLOOR = 0, WALL = 1, DOOR = 2, KEY = 3, EXIT = 4, TREASURE = 5, HIDE = 6, PORTAL = 7;
 const SPIKES = 8, TRIPWIRE = 9, TRAPDOOR = 10, GAS = 11, CRUMBLE = 12, PIT = 13;
 const PLANS = 14, GUN = 15, AMMO = 16, PRISONER = 17;
@@ -28,6 +29,7 @@ export async function startGame() {
     const ctx = canvas.getContext('2d');
     const castleCanvas = document.getElementById('castle');
     const cctx = castleCanvas.getContext('2d');
+    castleCanvas.width = 260 * SCALE; castleCanvas.height = 190 * SCALE; cctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
     const info = document.getElementById('info');
     const restartBtn = document.getElementById('restart');
     const levelSpan = document.getElementById('level');
@@ -74,6 +76,8 @@ export async function startGame() {
     let flash = 0, shake = 0, time = 0;
     let particles = [], popups = [];
     let onPortal = false;
+    let VW = 640, VH = 320; // logical view size (map pixels)
+    let deathAt = 0, doorsOpenedAt = -1, motes = [];
     let blades = [], bullets = [], bodies = [], reinforcements = [];
     let objectivesDone = new Map(); // levelIndex -> Set(objective ids)
     let levelAlarmed = false, alarmUntil = -1, sirenNext = 0, kills = 0, muzzle = 0;
@@ -88,7 +92,7 @@ export async function startGame() {
     // ---- sprites -------------------------------------------------------
     function createSpriteSheet() {
         const c = document.createElement('canvas');
-        c.width = TILE * 26; c.height = TILE * 4;
+        c.width = TILE * 36; c.height = TILE * 4;
         const g = c.getContext('2d');
         const px = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
         const tile = (i, fn) => { g.save(); g.translate(i * TILE, 0); fn(); g.restore(); };
@@ -109,6 +113,24 @@ export async function startGame() {
             px(0, 0, TILE, 3, '#8a8a96'); px(0, TILE - 3, TILE, 3, '#2e2e34');
             px(0, 0, 2, TILE, '#6c6c76');
         });
+        // 23 wall face: the lit front of a wall that borders floor below it (pseudo-3D)
+        tile(23, () => {
+            px(0, 0, TILE, TILE, '#3a3a42'); px(0, 0, TILE, 9, '#4a4a52'); px(0, 8, TILE, 1, '#1e1e24');
+            for (let r = 0; r < 3; r++) { const off = (r % 2) * 8; for (let b = -1; b < 3; b++) { const bx = b * 16 + off + 1, by = 10 + r * 7; px(bx, by, 14, 6, '#6a5a50'); px(bx, by, 14, 1, '#8a7a6c'); px(bx, by + 5, 14, 1, '#4a3e36'); } }
+            px(0, TILE - 2, TILE, 2, '#1e1e24');
+        });
+        // 24 rubble, 25 bones, 26 puddle, 27 blood stain (floor decals, drawn over floor)
+        tile(24, () => { g.clearRect(0, 0, TILE, TILE); px(6, 20, 5, 4, '#4a4a52'); px(14, 23, 4, 3, '#55555f'); px(20, 18, 6, 5, '#44444c'); px(10, 14, 3, 3, '#5e5e68'); px(22, 25, 3, 2, '#3a3a42'); });
+        tile(25, () => { g.clearRect(0, 0, TILE, TILE); px(8, 18, 12, 2, '#d8d0b8'); px(6, 16, 3, 6, '#d8d0b8'); px(19, 16, 3, 6, '#d8d0b8'); g.fillStyle = '#e8e0c8'; g.beginPath(); g.arc(24, 12, 4, 0, Math.PI * 2); g.fill(); px(22, 11, 1, 1, '#333'); px(25, 11, 1, 1, '#333'); });
+        tile(26, () => { g.clearRect(0, 0, TILE, TILE); g.fillStyle = 'rgba(40,60,90,0.55)'; g.beginPath(); g.ellipse(16, 18, 11, 6, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(120,160,220,0.25)'; g.beginPath(); g.ellipse(13, 16, 4, 2, 0, 0, Math.PI * 2); g.fill(); });
+        tile(27, () => { g.clearRect(0, 0, TILE, TILE); g.fillStyle = 'rgba(110,10,10,0.55)'; g.beginPath(); g.ellipse(15, 17, 8, 5, 0.4, 0, Math.PI * 2); g.fill(); px(22, 12, 2, 2, 'rgba(110,10,10,0.55)'); px(8, 24, 2, 2, 'rgba(110,10,10,0.55)'); });
+        // 28 banner, 29 barred window, 30 chains (wall decor, drawn over wall faces)
+        tile(28, () => { g.clearRect(0, 0, TILE, TILE); px(8, 9, 16, 1, '#7a5a30'); px(9, 10, 14, 18, '#8a1a1a'); px(9, 10, 14, 1, '#b03030'); g.fillStyle = '#e8c33a'; g.beginPath(); g.arc(16, 18, 4, 0, Math.PI * 2); g.fill(); px(15, 14, 2, 8, '#8a1a1a'); px(12, 17, 8, 2, '#8a1a1a'); g.fillStyle = '#8a1a1a'; g.beginPath(); g.moveTo(9, 28); g.lineTo(16, 25); g.lineTo(23, 28); g.lineTo(23, 30); g.lineTo(16, 27); g.lineTo(9, 30); g.closePath(); g.fill(); });
+        tile(29, () => { g.clearRect(0, 0, TILE, TILE); px(9, 11, 14, 14, '#08080c'); px(9, 11, 14, 1, '#2a2a30'); for (let i = 0; i < 3; i++) px(11 + i * 4, 11, 2, 14, '#55555f'); px(9, 17, 14, 2, '#55555f'); px(12, 13, 2, 1, '#3a4a66'); });
+        tile(30, () => { g.clearRect(0, 0, TILE, TILE); for (let i = 0; i < 6; i++) { px(7, 10 + i * 3, 2, 2, i % 2 ? '#6a6a76' : '#8a8a96'); px(23, 10 + i * 3, 2, 2, i % 2 ? '#8a8a96' : '#6a6a76'); } px(6, 9, 4, 2, '#55555f'); px(22, 9, 4, 2, '#55555f'); px(5, 27, 6, 3, '#55555f'); });
+        // 31 open door frame
+        tile(31, () => { g.clearRect(0, 0, TILE, TILE); px(0, 0, 4, TILE, '#4a3a2a'); px(28, 0, 4, TILE, '#4a3a2a'); px(0, 0, TILE, 3, '#4a3a2a'); px(1, 1, 2, TILE, '#6b4a24'); px(29, 1, 2, TILE, '#6b4a24'); });
+
         // 5 door: iron-banded wood
         tile(5, () => { px(0, 0, TILE, TILE, '#2b1d10'); px(3, 1, 26, 30, '#6b4a24'); for (let i = 0; i < 4; i++) px(3 + i * 7, 1, 1, 30, '#4b3217'); px(3, 7, 26, 3, '#3a3a40'); px(3, 22, 26, 3, '#3a3a40'); px(21, 14, 4, 4, '#e8c33a'); px(22, 15, 2, 2, '#1a1a1a'); });
         // 6 key
@@ -184,7 +206,7 @@ export async function startGame() {
             pf[d] = [0, 1, 2, 3].map((f) => ({ x: (di % 2) * 4 + f, y: 1 + Math.floor(di / 2) }));
             gf[d] = [0, 1].map((f) => ({ x: di * 2 + f, y: 3 }));
         });
-        return { img, frames: { tiles: { [WALL]: 4, [DOOR]: 5, [KEY]: 6, [EXIT]: 7, [TREASURE]: 8, [HIDE]: 9, [PORTAL]: 10, [SPIKES]: 11, [TRIPWIRE]: 14, [TRAPDOOR]: 15, [GAS]: 16, [CRUMBLE]: 17, [PIT]: 18, [PLANS]: 19, [GUN]: 20, [AMMO]: 21, [PRISONER]: 22 }, spikes: [11, 12, 13], player: pf, guard: gf } };
+        return { img, frames: { tiles: { [WALL]: 4, [DOOR]: 5, [KEY]: 6, [EXIT]: 7, [TREASURE]: 8, [HIDE]: 9, [PORTAL]: 10, [SPIKES]: 11, [TRIPWIRE]: 14, [TRAPDOOR]: 15, [GAS]: 16, [CRUMBLE]: 17, [PIT]: 18, [PLANS]: 19, [GUN]: 20, [AMMO]: 21, [PRISONER]: 22 }, spikes: [11, 12, 13], wallFace: 23, decals: [24, 25, 26, 27], decor: [28, 29, 30], doorOpen: 31, player: pf, guard: gf } };
     }
     const sheet = createSpriteSheet();
     const sprites = { sheet: sheet.img, frames: sheet.frames, ready: false };
@@ -272,7 +294,7 @@ export async function startGame() {
     const now = () => performance.now();
     const elapsedMs = () => ((phase === 'paused' || phase === 'map') ? pausedAt : now()) - runStart;
     function tileAt(x, y) { if (y < 0 || y >= map.length || x < 0 || x >= map[0].length) return WALL; return map[y][x]; }
-    function walkable(x, y, ignoreDoors = false, forGuard = false) { const t = tileAt(x, y); if (t === WALL || t === PIT) return false; if (t === DOOR && !ignoreDoors) return false; if (forGuard && t === TRAPDOOR) return false; return true; }
+    function walkable(x, y, ignoreDoors = false, forGuard = false) { const t = tileAt(x, y); if (t === WALL || t === PIT) return false; if (t === DOOR && !ignoreDoors && !player.hasKey) return false; if (forGuard && t === TRAPDOOR) return false; return true; }
     const DIR_ANGLE = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
     const dirFromVec = (dx, dy) => (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
     const spawnParticles = (x, y, n, col, speed = 60) => { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = speed * (0.4 + Math.random()); particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: 0.5 + Math.random() * 0.5, col }); } };
@@ -294,7 +316,11 @@ export async function startGame() {
         const lvl = levels[i];
         const st = resume ? roomState(i) : makeRoomState(i);
         map = st.map.map((row) => row.slice());
-        canvas.width = map[0].length * TILE; canvas.height = map.length * TILE; light.width = canvas.width; light.height = canvas.height;
+        VW = map[0].length * TILE; VH = map.length * TILE;
+        canvas.width = VW * SCALE; canvas.height = VH * SCALE; light.width = canvas.width; light.height = canvas.height;
+        ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0); lctx.setTransform(SCALE, 0, 0, SCALE, 0, 0); ctx.imageSmoothingEnabled = false;
+        motes = Array.from({ length: 36 }, () => ({ x: Math.random() * VW, y: Math.random() * VH, s: 0.3 + Math.random() * 0.8, ph: Math.random() * 6.28 }));
+        doorsOpenedAt = st.hasKey ? -10 : -1;
         portals = lvl.portals ?? [];
         const start = fromPortal ? [fromPortal.x, fromPortal.y] : lvl.player_start;
         player.x = start[0]; player.y = start[1]; player.px = player.x * TILE; player.py = player.y * TILE;
@@ -360,7 +386,7 @@ export async function startGame() {
     function caught() { die('Caught by a guard!'); }
     function die(reason) {
         message = reason;
-        player.alive = false; flash = 0.4; shake = 0.4;
+        player.alive = false; flash = 0.4; shake = 0.4; deathAt = time;
         lives -= 1; score -= levelScore; // gold respawns with the room, so give it back
         levelStates.delete(levelIndex);
         spawnParticles(player.px + 16, player.py + 16, 20, '#ff4040', 80);
@@ -445,11 +471,11 @@ export async function startGame() {
             for (let i = 0; i < 2; i++) {
                 b.x += b.vx / 2; b.y += b.vy / 2;
                 const tx = Math.floor(b.x / TILE), ty = Math.floor(b.y / TILE), t = tileAt(tx, ty);
-                if (t === WALL || t === DOOR) { spawnParticles(b.x, b.y, 5, '#ffd080', 40); return false; }
+                if (t === WALL || (t === DOOR && !player.hasKey)) { spawnParticles(b.x, b.y, 5, '#ffd080', 40); return false; }
                 for (let k = 0; k < guards.length; k++) {
                     const g = guards[k];
                     if (Math.hypot(g.px + 16 - b.x, g.py + 16 - b.y) < 13) {
-                        guards.splice(k, 1); bodies.push({ px: g.px, py: g.py, dir: g.dir }); kills++;
+                        guards.splice(k, 1); bodies.push({ px: g.px, py: g.py, dir: g.dir, born: time }); kills++;
                         score += KILL_POINTS; levelScore += KILL_POINTS; playSound('hit');
                         spawnParticles(g.px + 16, g.py + 16, 16, '#c02020', 70); popup(`+${KILL_POINTS}`, g.px + 16, g.py - 6, '#ff8080');
                         return false;
@@ -463,9 +489,9 @@ export async function startGame() {
     // ---- input ---------------------------------------------------------
     function advance() {
         ensureAudio();
-        if (phase === 'title' || phase === 'gameover' || phase === 'won') startCampaign();
+        if (phase === 'title' || phase === 'won' || (phase === 'gameover' && time - deathAt > 0.7)) startCampaign();
         else if (phase === 'levelclear') { const t = nextTarget(); loadLevel(t, { resume: completed.has(t) }); }
-        else if (phase === 'dead') loadLevel(levelIndex);
+        else if (phase === 'dead') { if (time - deathAt > 0.7) loadLevel(levelIndex); }
         else if (phase === 'paused' || phase === 'map') togglePause();
     }
     function togglePause(mode = 'paused') {
@@ -537,7 +563,7 @@ export async function startGame() {
         let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1, dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1, err = dx + dy, x = x0, y = y0;
         while (true) {
             if (x === x1 && y === y1) return false;
-            const t = tileAt(x, y); if (t === WALL || t === DOOR) return true;
+            const t = tileAt(x, y); if (t === WALL || (t === DOOR && !player.hasKey)) return true;
             const e2 = 2 * err; if (e2 >= dy) { err += dy; x += sx; } if (e2 <= dx) { err += dx; y += sy; }
         }
     }
@@ -567,7 +593,7 @@ export async function startGame() {
         if (keysPressed['s'] || keysPressed['arrowdown'] || keysPressed.gpdown) dy = 1;
         if (keysPressed['a'] || keysPressed['arrowleft'] || keysPressed.gpleft) dx = -1;
         if (keysPressed['d'] || keysPressed['arrowright'] || keysPressed.gpright) dx = 1;
-        if (alarmUntil > time) { ctx.fillStyle = `rgba(255,0,0,${0.06 + 0.07 * Math.abs(Math.sin(time * 6))})`; ctx.fillRect(-20, -20, canvas.width + 40, canvas.height + 40); ctx.fillStyle = '#ff4040'; ctx.font = 'bold 16px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(`ALARM  ${Math.ceil(alarmUntil - time)}`, canvas.width / 2, 20); ctx.textAlign = 'left'; }
+        if (alarmUntil > time) { ctx.fillStyle = `rgba(255,0,0,${0.06 + 0.07 * Math.abs(Math.sin(time * 6))})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); ctx.fillStyle = '#ff4040'; ctx.font = 'bold 18px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(`ALARM  ${Math.ceil(alarmUntil - time)}`, VW / 2, 22); ctx.textAlign = 'left'; }
         if (dizzy > 0) { dizzy -= dt; dx = -dx; dy = -dy; }
         player.sprinting = !!(keysPressed['shift'] || keysPressed.gpsprint) && (dx || dy);
         const speed = player.sprinting ? SPRINT_SPEED : WALK_SPEED;
@@ -593,7 +619,7 @@ export async function startGame() {
         const here = tileAt(player.x, player.y);
         const wasHidden = player.hidden; player.hidden = here === HIDE && !moving;
         if (player.hidden && !wasHidden) { playSound('hide'); message = 'Hidden in the crates.'; }
-        if (here === KEY) { player.hasKey = true; map[player.y][player.x] = FLOOR; message = 'Got the key! Doors are open.'; playSound('pickup'); playSound('door'); popup('Key!', player.px + 16, player.py - 4); spawnParticles(player.px + 16, player.py + 16, 14, '#ffd23a'); for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === DOOR) map[y][x] = FLOOR; }
+        if (here === KEY) { player.hasKey = true; map[player.y][player.x] = FLOOR; message = 'Got the key! Doors are open.'; playSound('pickup'); playSound('door'); popup('Key!', player.px + 16, player.py - 4); spawnParticles(player.px + 16, player.py + 16, 14, '#ffd23a'); doorsOpenedAt = time; }
         else if (here === TREASURE) { map[player.y][player.x] = FLOOR; treasureFound++; levelScore += TREASURE_POINTS; score += TREASURE_POINTS; message = `Gold! (${treasureFound}/${treasureTotal})`; playSound('treasure'); popup(`+${TREASURE_POINTS}`, player.px + 16, player.py - 4); spawnParticles(player.px + 16, player.py + 16, 16, '#ffe066'); }
         else if (here === EXIT) { completeLevel(); return; }
         else if (here === PLANS) { map[player.y][player.x] = FLOOR; playSound('plans'); message = 'The war plans! Now get out of the castle.'; markObjective('plans'); spawnParticles(player.px + 16, player.py + 16, 24, '#fff3a8', 80); }
@@ -662,23 +688,46 @@ export async function startGame() {
     // ---- draw ----------------------------------------------------------
     function blit(f, x, y) { ctx.drawImage(sprites.sheet, f.x * TILE, f.y * TILE, TILE, TILE, x, y, TILE, TILE); }
     const fallbackColour = { [WALL]: '#444', [DOOR]: '#3a3', [KEY]: '#ff8800', [EXIT]: '#06f', [TREASURE]: '#dba51a', [HIDE]: '#8a6230', [PORTAL]: '#335', [SPIKES]: '#888', [TRIPWIRE]: '#666', [TRAPDOOR]: '#5a4020', [GAS]: '#3c4a3c', [CRUMBLE]: '#2a2a30', [PIT]: '#000' };
-    function torches() { const out = []; for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === WALL && tileAt(x, y + 1) !== WALL && hash(x * 3 + levelIndex, y * 5) < 0.16) out.push([x, y]); return out; }
+    function torches() { const out = []; for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === WALL && tileAt(x, y + 1) !== WALL && hash(x * 3 + levelIndex, y * 5) < 0.16 && hash(x * 11 + levelIndex, y * 17) <= 0.84) out.push([x, y]); return out; }
     let torchCache = null, torchLevel = -1;
 
     function drawWorld() {
+        const fr = sprites.frames;
         for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) {
             const t = map[y][x], px = x * TILE, py = y * TILE;
             if (!sprites.ready) { ctx.fillStyle = fallbackColour[t] ?? '#222'; ctx.fillRect(px, py, TILE, TILE); continue; }
+            if (t === WALL) {
+                const faces = tileAt(x, y + 1) !== WALL;
+                blit({ x: faces ? fr.wallFace : fr.tiles[WALL], y: 0 }, px, py);
+                if (faces) { const h = hash(x * 11 + levelIndex, y * 17); if (h > 0.84) blit({ x: fr.decor[Math.floor((h - 0.84) / 0.16 * 3) % 3], y: 0 }, px, py); }
+                if (tileAt(x - 1, y) !== WALL) { ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(px, py, 2, TILE); }
+                if (tileAt(x + 1, y) !== WALL) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(px + TILE - 2, py, 2, TILE); }
+                continue;
+            }
             blit({ x: Math.floor(hash(x, y) * 4), y: 0 }, px, py); // floor under everything
-            if (t === SPIKES) { const st = spikeState(x, y); blit({ x: sprites.frames.spikes[st === 'up' ? 2 : st === 'warn' ? 1 : 0], y: 0 }, px, py); }
-            else if (t !== FLOOR) blit({ x: sprites.frames.tiles[t], y: 0 }, px, py);
-            if (t === TREASURE || t === KEY) { const pulse = 0.25 + 0.2 * Math.sin(time * 5 + x); ctx.fillStyle = `rgba(255,220,80,${pulse * 0.25})`; ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); }
+            const dh = hash(x * 7 + 3, y * 5 + 1);
+            if (dh > 0.9 && (t === FLOOR || t === SPIKES || t === TRIPWIRE)) blit({ x: fr.decals[Math.floor((dh - 0.9) * 40) % 4], y: 0 }, px, py);
+            if (t === DOOR) {
+                if (doorsOpenedAt < 0) blit({ x: fr.tiles[DOOR], y: 0 }, px, py);
+                else { const k = Math.min(1, (time - doorsOpenedAt) / 0.6); ctx.save(); ctx.beginPath(); ctx.rect(px, py, TILE, TILE); ctx.clip(); blit({ x: fr.tiles[DOOR], y: 0 }, px, py - k * TILE); ctx.restore(); blit({ x: fr.doorOpen, y: 0 }, px, py); }
+            }
+            else if (t === SPIKES) { const st = spikeState(x, y); blit({ x: fr.spikes[st === 'up' ? 2 : st === 'warn' ? 1 : 0], y: 0 }, px, py); }
+            else if (t !== FLOOR) blit({ x: fr.tiles[t], y: 0 }, px, py);
+            if (t === TREASURE || t === KEY || t === PLANS) { const pulse = 0.25 + 0.2 * Math.sin(time * 5 + x); ctx.fillStyle = `rgba(255,220,80,${pulse * 0.25})`; ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); }
         }
         // wall drop shadows onto floor below
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         for (let y = 0; y < map.length - 1; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === WALL && map[y + 1][x] !== WALL) ctx.fillRect(x * TILE, (y + 1) * TILE, TILE, 6);
         if (torchLevel !== levelIndex) { torchCache = torches(); torchLevel = levelIndex; }
-        for (const [x, y] of torchCache) { const fl = Math.sin(time * 9 + x) * 1.5; ctx.fillStyle = '#5a3a1a'; ctx.fillRect(x * TILE + 14, y * TILE + 18, 4, 10); ctx.fillStyle = '#ffb53a'; ctx.beginPath(); ctx.ellipse(x * TILE + 16, y * TILE + 15 + fl * 0.3, 4 + fl * 0.5, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff3a8'; ctx.beginPath(); ctx.ellipse(x * TILE + 16, y * TILE + 17, 2, 3.5, 0, 0, Math.PI * 2); ctx.fill(); }
+        for (const [x, y] of torchCache) {
+            const fl = Math.sin(time * 9 + x) * 1.5;
+            ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x * TILE + 14, y * TILE + 19, 4, 11); ctx.fillStyle = '#55555f'; ctx.fillRect(x * TILE + 12, y * TILE + 18, 8, 2);
+            ctx.fillStyle = 'rgba(255,120,30,0.55)'; ctx.beginPath(); ctx.ellipse(x * TILE + 16, y * TILE + 14 + fl * 0.3, 5 + fl * 0.5, 8, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffb53a'; ctx.beginPath(); ctx.ellipse(x * TILE + 16, y * TILE + 15, 3.5 + fl * 0.4, 6, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fff3a8'; ctx.beginPath(); ctx.ellipse(x * TILE + 16, y * TILE + 17, 1.8, 3.2, 0, 0, Math.PI * 2); ctx.fill();
+            // smoke
+            for (let i = 0; i < 3; i++) { const tt = (time * 0.6 + i * 0.33 + x * 0.1) % 1; ctx.fillStyle = `rgba(200,200,210,${0.12 * (1 - tt)})`; ctx.beginPath(); ctx.arc(x * TILE + 16 + Math.sin(time * 2 + i) * 3, y * TILE + 8 - tt * 14, 2 + tt * 3, 0, Math.PI * 2); ctx.fill(); }
+        }
     }
     function drawCone(g) {
         const cx = g.px + TILE / 2, cy = g.py + TILE / 2, a = DIR_ANGLE[g.dir];
@@ -689,7 +738,7 @@ export async function startGame() {
     }
     function drawLighting() {
         lctx.globalCompositeOperation = 'source-over';
-        lctx.fillStyle = 'rgba(4,4,10,0.78)'; lctx.fillRect(0, 0, light.width, light.height);
+        lctx.fillStyle = 'rgba(4,4,10,0.78)'; lctx.fillRect(0, 0, VW, VH);
         lctx.globalCompositeOperation = 'destination-out';
         const hole = (x, y, r, inner = 0.9) => { const gr = lctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${inner})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); lctx.fillStyle = gr; lctx.beginPath(); lctx.arc(x, y, r, 0, Math.PI * 2); lctx.fill(); };
         hole(player.px + 16, player.py + 16, player.hidden ? 90 : 150, 0.95);
@@ -699,15 +748,31 @@ export async function startGame() {
         if (muzzle > 0) hole(player.px + 16, player.py + 16, 220, 0.9);
         for (const b of bullets) hole(b.x, b.y, 24, 0.6);
         for (const g of guards) { const cx = g.px + 16, cy = g.py + 16, a = DIR_ANGLE[g.dir]; lctx.fillStyle = 'rgba(0,0,0,0.55)'; lctx.beginPath(); lctx.moveTo(cx, cy); lctx.arc(cx, cy, VIEW_DIST * 0.9, a - VIEW_FOV / 2, a + VIEW_FOV / 2); lctx.closePath(); lctx.fill(); hole(cx, cy, 40, 0.6); }
-        ctx.drawImage(light, 0, 0);
+        ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(light, 0, 0); ctx.restore();
     }
-    function overlay(title, lines, sub = null) {
-        ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.textAlign = 'center'; ctx.fillStyle = '#fff';
-        ctx.font = 'bold 34px Georgia, serif'; ctx.fillText(title, canvas.width / 2, canvas.height / 2 - 34);
-        ctx.font = '15px system-ui, sans-serif'; ctx.fillStyle = '#ddd';
-        lines.forEach((l, i) => ctx.fillText(l, canvas.width / 2, canvas.height / 2 + 2 + i * 22));
-        if (sub) { ctx.fillStyle = '#ffe066'; ctx.fillText(sub, canvas.width / 2, canvas.height - 18); }
+    function castleSilhouette() {
+        ctx.fillStyle = '#07070a';
+        const base = VH * 0.78;
+        ctx.fillRect(0, base, VW, VH - base);
+        const towers = [[0.08, 0.42], [0.22, 0.3], [0.5, 0.18], [0.78, 0.3], [0.92, 0.42]];
+        for (const [cx, top] of towers) { const w = VW * 0.1, x = VW * cx - w / 2, y = VH * top; ctx.fillRect(x, y, w, base - y); for (let i = 0; i < 4; i++) ctx.fillRect(x + i * (w / 4) + 2, y - 8, w / 8, 8); }
+        ctx.fillRect(VW * 0.08, VH * 0.55, VW * 0.84, base - VH * 0.55);
+        for (let i = 0; i < 18; i++) ctx.fillRect(VW * 0.08 + i * (VW * 0.84 / 18) + 3, VH * 0.55 - 7, VW * 0.84 / 36, 7);
+        // lit windows
+        for (let i = 0; i < 9; i++) { const h = hash(i, 3); if (h > 0.4) { ctx.fillStyle = `rgba(255,180,70,${0.5 + 0.4 * Math.sin(time * 2 + i)})`; ctx.fillRect(VW * (0.14 + i * 0.09), VH * 0.62 + (h * 20), 4, 6); } }
+    }
+    function overlay(title, lines, sub = null, { castle = false } = {}) {
+        ctx.fillStyle = castle ? 'rgba(10,8,16,0.88)' : 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, VW, VH);
+        if (castle) castleSilhouette();
+        ctx.textAlign = 'center';
+        let size = castle ? 38 : 30;
+        ctx.font = `bold ${size}px Cinzel, Georgia, serif`;
+        while (size > 16 && ctx.measureText(title).width > VW - 40) { size -= 2; ctx.font = `bold ${size}px Cinzel, Georgia, serif`; }
+        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(title, VW / 2 + 2, VH / 2 - 32);
+        ctx.fillStyle = castle ? '#f2d06b' : '#fff'; ctx.fillText(title, VW / 2, VH / 2 - 34);
+        ctx.font = '19px VT323, monospace'; ctx.fillStyle = '#e6e6e6';
+        lines.forEach((l, i) => ctx.fillText(l, VW / 2, VH / 2 + 4 + i * 22));
+        if (sub) { ctx.fillStyle = '#ffe066'; ctx.font = '21px VT323, monospace'; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(time * 3); ctx.fillText(sub, VW / 2, VH - 16); ctx.globalAlpha = 1; }
         ctx.textAlign = 'left';
     }
 
@@ -751,7 +816,7 @@ export async function startGame() {
     function draw() {
         ctx.save();
         if (shake > 0) ctx.translate((Math.random() - 0.5) * shake * 20, (Math.random() - 0.5) * shake * 20);
-        ctx.clearRect(-20, -20, canvas.width + 40, canvas.height + 40);
+        ctx.clearRect(-20, -20, VW + 40, VH + 40);
         drawWorld();
         // gas clouds
         for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === GAS && gasActive(x, y)) { const cx = x * TILE + 16, cy = y * TILE + 16; const gr = ctx.createRadialGradient(cx, cy, 4, cx, cy, GAS_RADIUS + Math.sin(time * 6) * 4); gr.addColorStop(0, 'rgba(120,220,90,0.45)'); gr.addColorStop(1, 'rgba(120,220,90,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, GAS_RADIUS + 6, 0, Math.PI * 2); ctx.fill(); }
@@ -763,8 +828,13 @@ export async function startGame() {
             ctx.fillStyle = '#444'; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill(); ctx.restore();
         }
         guards.forEach(drawCone);
-        for (const b of bodies) { ctx.save(); ctx.translate(b.px + 16, b.py + 16); ctx.rotate(Math.PI / 2); ctx.globalAlpha = 0.85; ctx.fillStyle = 'rgba(120,10,10,0.5)'; ctx.beginPath(); ctx.ellipse(0, 4, 14, 8, 0, 0, Math.PI * 2); ctx.fill(); if (sprites.ready) blit(sprites.frames.guard[b.dir][0], -16, -16); ctx.restore(); }
-        if (sprites.ready) { ctx.globalAlpha = player.hidden ? 0.45 : 1; blit(sprites.frames.player[player.dir][player.frameIdx], player.px, player.py); ctx.globalAlpha = 1; }
+        for (const b of bodies) { const k = b.born === undefined ? 1 : Math.min(1, (time - b.born) / 0.35); ctx.save(); ctx.translate(b.px + 16, b.py + 16); ctx.rotate((Math.PI / 2) * k); ctx.globalAlpha = 0.85; ctx.fillStyle = 'rgba(120,10,10,0.5)'; ctx.beginPath(); ctx.ellipse(0, 4, 14, 8, 0, 0, Math.PI * 2); ctx.fill(); if (sprites.ready) blit(sprites.frames.guard[b.dir][0], -16, -16); ctx.restore(); }
+        if (sprites.ready) {
+            ctx.save(); ctx.globalAlpha = player.hidden ? 0.45 : 1;
+            if (!player.alive && (phase === 'dead' || phase === 'gameover')) { const k = Math.min(1, (time - deathAt) / 0.4); ctx.translate(player.px + 16, player.py + 16); ctx.rotate(-(Math.PI / 2) * k); ctx.translate(-16, -16); blit(sprites.frames.player[player.dir][0], 0, 0); }
+            else blit(sprites.frames.player[player.dir][player.frameIdx], player.px, player.py);
+            ctx.restore();
+        }
         else { ctx.fillStyle = player.alive ? '#ffdd00' : '#777'; ctx.fillRect(player.px + 6, player.py + 6, TILE - 12, TILE - 12); }
         if (muzzle > 0) { const a = DIR_ANGLE[player.dir]; ctx.fillStyle = '#fff3a8'; ctx.beginPath(); ctx.arc(player.px + 16 + Math.cos(a) * 16, player.py + 16 + Math.sin(a) * 16, 6, 0, Math.PI * 2); ctx.fill(); }
         for (const b of bullets) { ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x - b.vx, b.y - b.vy); ctx.lineTo(b.x, b.y); ctx.stroke(); }
@@ -774,23 +844,27 @@ export async function startGame() {
             if (g.state === 'alert') { const bob = Math.abs(Math.sin(time * 8)) * 4; ctx.fillStyle = '#ff3b3b'; ctx.font = 'bold 20px Georgia, serif'; ctx.fillText('!', g.px + 12, g.py - 4 - bob); }
         });
         particles.forEach((p) => { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.col; ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3); }); ctx.globalAlpha = 1;
+        // ambient dust motes
+        for (const m of motes) { m.x += Math.sin(time * 0.7 + m.ph) * 0.15; m.y -= m.s * 0.12; if (m.y < -4) { m.y = VH + 4; m.x = Math.random() * VW; } ctx.fillStyle = `rgba(255,240,200,${0.08 + 0.1 * Math.sin(time * 1.3 + m.ph) ** 2})`; ctx.fillRect(m.x, m.y, 1.5, 1.5); }
         drawLighting();
-        popups.forEach((p) => { ctx.globalAlpha = Math.min(1, p.life); ctx.fillStyle = p.col; ctx.font = 'bold 14px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(p.text, p.x, p.y); }); ctx.globalAlpha = 1; ctx.textAlign = 'left';
+        // vignette
+        const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.45, VW / 2, VH / 2, VW * 0.72); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.55)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
+        popups.forEach((p) => { ctx.globalAlpha = Math.min(1, p.life); ctx.fillStyle = p.col; ctx.font = '18px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText(p.text, p.x, p.y); }); ctx.globalAlpha = 1; ctx.textAlign = 'left';
         if (player.sprinting) { ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.arc(player.px + 16, player.py + 16, SPRINT_NOISE * (0.6 + 0.4 * ((time * 2) % 1)), 0, Math.PI * 2); ctx.stroke(); }
-        if (dizzy > 0) { ctx.fillStyle = `rgba(120,220,90,${0.08 + 0.08 * Math.sin(time * 7)})`; ctx.fillRect(-20, -20, canvas.width + 40, canvas.height + 40); }
-        if (flash > 0) { ctx.fillStyle = `rgba(255,0,0,${Math.min(0.5, flash)})`; ctx.fillRect(-20, -20, canvas.width + 40, canvas.height + 40); }
+        if (dizzy > 0) { ctx.fillStyle = `rgba(120,220,90,${0.08 + 0.08 * Math.sin(time * 7)})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); }
+        if (flash > 0) { ctx.fillStyle = `rgba(255,0,0,${Math.min(0.5, flash)})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); }
         ctx.restore();
 
         const lvl = levels[levelIndex];
-        if (phase === 'title') overlay('Mini Castle Wolfenstein', ['Steal the war plans from the Keep and escape every room.', 'Stay out of the guards\' sight. Crates hide you, sprinting is loud.', 'Find a pistol if you must, but gunfire brings guards from other rooms.'], 'Press Space or tap to start');
+        if (phase === 'title') overlay('Mini Castle Wolfenstein', ['Steal the war plans from the Keep and escape every room.', 'Stay out of the guards\' sight. Crates hide you, sprinting is loud.', 'Find a pistol if you must, but gunfire brings guards from other rooms.'], 'Press Space or tap to start', { castle: true });
         else if (phase === 'paused') overlay('Paused', ['Press P or Space to resume']);
-        else if (phase === 'map') { ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, canvas.width, canvas.height); drawCastle(ctx, canvas.width, canvas.height, true); ctx.fillStyle = '#ffe066'; ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('The castle — press M to return', canvas.width / 2, canvas.height - 8); ctx.textAlign = 'left'; }
+        else if (phase === 'map') { ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, VW, VH); drawCastle(ctx, VW, VH, true); ctx.fillStyle = '#ffe066'; ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('The castle — press M to return', VW / 2, VH - 8); ctx.textAlign = 'left'; }
         else if (phase === 'levelclear') overlay(`${lvl.name} cleared`, [`Score ${score}`, `${completed.size} of ${levels.length} rooms escaped`, ...(completed.size === levels.length && missingRequired().length ? [`Go back for the ${missingRequired()[0].obj.label.toLowerCase()}`] : [])], 'Press Space to continue');
-        else if (phase === 'dead') overlay('Caught!', [`${lives} ${lives === 1 ? 'life' : 'lives'} left`], 'Press Space to retry');
-        else if (phase === 'gameover') overlay('Game over', [`Final score ${score}`], 'Press Space to try again');
+        else if (phase === 'dead') { if (time - deathAt > 0.7) overlay(message.split('\n')[0].replace(/[!.]$/, '') || 'Caught!', [`${lives} ${lives === 1 ? 'life' : 'lives'} left`], 'Press Space to retry'); }
+        else if (phase === 'gameover') { if (time - deathAt > 0.7) overlay('Game over', [`Final score ${score}`], 'Press Space to try again'); }
         else if (phase === 'won') overlay('You escaped with the plans!', [`Final score ${score}`, `${kills} guard${kills === 1 ? '' : 's'} shot, ${[...objectivesDone.values()].reduce((n, st) => n + st.size, 0)} objectives completed`], 'Press Space to play again');
 
-        drawCastle(cctx, castleCanvas.width, castleCanvas.height, false);
+        drawCastle(cctx, 260, 190, false);
         timerEl.textContent = phase === 'title' ? '0.0s' : `${(elapsedMs() / 1000).toFixed(1)}s`;
         scoreEl.textContent = score;
         livesEl.textContent = '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, MAX_LIVES - lives));
