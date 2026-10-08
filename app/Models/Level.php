@@ -41,7 +41,19 @@ class Level extends Model
     /** Pit left behind by crumbled floor (runtime only, never seeded). */
     public const TILE_PIT = 13;
 
-    protected $fillable = ['number', 'name', 'map', 'player_start', 'guards', 'portals', 'traps', 'castle_x', 'castle_y'];
+    /** The war plans: the campaign's main objective. */
+    public const TILE_PLANS = 14;
+
+    /** Pistol pickup. */
+    public const TILE_GUN = 15;
+
+    /** Ammunition box. */
+    public const TILE_AMMO = 16;
+
+    /** Locked cell with a prisoner to free. */
+    public const TILE_PRISONER = 17;
+
+    protected $fillable = ['number', 'name', 'map', 'player_start', 'guards', 'portals', 'traps', 'objectives', 'castle_x', 'castle_y'];
 
     protected function casts(): array
     {
@@ -51,6 +63,7 @@ class Level extends Model
             'guards' => 'array',
             'portals' => 'array',
             'traps' => 'array',
+            'objectives' => 'array',
         ];
     }
 

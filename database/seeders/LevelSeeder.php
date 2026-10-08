@@ -16,6 +16,12 @@ class LevelSeeder extends Seeder
      *              S spike plate (timed)   T tripwire (sprinting triggers alarm)
      *              X trapdoor (drops you to the room below)   G gas vent (reverses controls)
      *              C crumbling floor (becomes a pit once you step off)
+     *              W war plans (required to win)   U pistol   A ammo box
+     *              R prisoner cell (free them for a bonus)
+     *
+     * Objectives are derived from the tiles: every room has "find all gold"
+     * and "no alarm"; W adds a required "steal the war plans", R adds
+     * "free the prisoner".
      *
      * 'traps' lists moving hazards: ['type' => 'blade', 'from' => [x,y], 'to' => [x,y], 'spd' => px/frame]
      *
@@ -40,6 +46,10 @@ class LevelSeeder extends Seeder
         'X' => Level::TILE_TRAPDOOR,
         'G' => Level::TILE_GAS,
         'C' => Level::TILE_CRUMBLE,
+        'W' => Level::TILE_PLANS,
+        'U' => Level::TILE_GUN,
+        'A' => Level::TILE_AMMO,
+        'R' => Level::TILE_PRISONER,
     ];
 
     public function run(): void
@@ -77,7 +87,7 @@ class LevelSeeder extends Seeder
                     '####################',
                     '#P...H.......#.$...#',
                     '#.##.##T####.#.###.#',
-                    '#.#..$#.#..#...#..a#',
+                    '#.#..$#.#..#U..#..a#',
                     '#.#.###.#.##.###.#.#',
                     '#.#.....#.G..H...#$#',
                     '#.#####.#######.##D#',
@@ -99,10 +109,10 @@ class LevelSeeder extends Seeder
                     '####################',
                     '#P..#....$...#....K#',
                     '#.#.#.######.#.#.#.#',
-                    '#.#...#H...#.#.#$#.#',
+                    '#.#...#H...#.#R#$#.#',
                     '#.###.#.##.#...#.#.#',
                     '#...#.#..#.#####.#.#',
-                    '###.#.##C#.#...#.#.#',
+                    '###.#.##C#.#...#A#.#',
                     '#$..#....#.#.#######',
                     '#b#######H...DE$...#',
                     '####################',
@@ -126,8 +136,8 @@ class LevelSeeder extends Seeder
                     '#P#....#..#......$.#',
                     '#.##.###.##.#.######',
                     '#..#.......#.S.H..a#',
-                    '##.#.#####.###.###.#',
-                    '#$...#..K$.X.#...#.#',
+                    '##A#.#####.###.###.#',
+                    '#$...#..K$.X.#...#R#',
                     '####################',
                 ],
                 'guards' => [
@@ -149,7 +159,7 @@ class LevelSeeder extends Seeder
                     '####################',
                     '#P.H.....#$....#..K#',
                     '#.###T##.#.###.#.#.#',
-                    '#.#...#..#...#...#.#',
+                    '#.#...#..#...#...#W#',
                     '#..b#.#.###.#####.S#',
                     '#.###.#..G..#..$...#',
                     '#.$.H...#...#.######',
@@ -203,6 +213,7 @@ class LevelSeeder extends Seeder
             }, $parsed['portals']);
 
             Level::updateOrCreate(['number' => $number], [
+                'objectives' => $this->objectivesFor($parsed['map']),
                 'name' => $parsed['level']['name'],
                 'map' => $parsed['map'],
                 'player_start' => $parsed['start'],
@@ -215,6 +226,27 @@ class LevelSeeder extends Seeder
         }
 
         Level::whereNotIn('number', array_column($levels, 'number'))->delete();
+    }
+
+    /**
+     * @return array<int, array{id: string, label: string, points: int, required: bool}>
+     */
+    private function objectivesFor(array $map): array
+    {
+        $flat = array_merge(...$map);
+        $objectives = [];
+        if (in_array(Level::TILE_PLANS, $flat, true)) {
+            $objectives[] = ['id' => 'plans', 'label' => 'Steal the war plans', 'points' => 500, 'required' => true];
+        }
+        if (in_array(Level::TILE_PRISONER, $flat, true)) {
+            $objectives[] = ['id' => 'prisoner', 'label' => 'Free the prisoner', 'points' => 300, 'required' => false];
+        }
+        if (in_array(Level::TILE_TREASURE, $flat, true)) {
+            $objectives[] = ['id' => 'all_gold', 'label' => 'Find all the gold', 'points' => 250, 'required' => false];
+        }
+        $objectives[] = ['id' => 'no_alarm', 'label' => 'Leave without raising the alarm', 'points' => 200, 'required' => false];
+
+        return $objectives;
     }
 
     /** @return array{map: int[][], start: int[], portals: array<int, array{id: string, x: int, y: int}>} */
@@ -283,8 +315,8 @@ class LevelSeeder extends Seeder
         }
         foreach ($map as $y => $row) {
             foreach ($row as $x => $t) {
-                if ($t === Level::TILE_TREASURE && ! isset($withDoors["$x,$y"])) {
-                    $problems[] = "Level $n: treasure at ($x,$y) is unreachable";
+                if (in_array($t, [Level::TILE_TREASURE, Level::TILE_PLANS, Level::TILE_PRISONER, Level::TILE_GUN, Level::TILE_AMMO], true) && ! isset($withDoors["$x,$y"])) {
+                    $problems[] = "Level $n: pickup at ($x,$y) is unreachable";
                 }
             }
         }

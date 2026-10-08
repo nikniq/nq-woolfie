@@ -14,10 +14,11 @@
             <button type="button" data-dir="left" aria-label="Left">◀</button>
             <button type="button" data-dir="right" aria-label="Right">▶</button>
             <button type="button" data-dir="down" aria-label="Down">▼</button>
+            <button type="button" data-action="fire" aria-label="Fire">●</button>
         </div>
     </div>
     <div id="hud">
-        <div id="status">Arrows / WASD move, hold Shift to sprint (noisy). Stand on crates to hide. Key opens doors, gold is points. P pauses, R restarts. Gamepad works too.</div>
+        <div id="status">Arrows / WASD move, Shift sprints (noisy), F or Ctrl fires. Stand on crates to hide. Key opens doors, gold is points. P pauses, M map, R restarts. Gamepad works too.</div>
         <div id="controls">
             <div id="levelLabel">Level <span id="level">1</span> / {{ $levelCount }}</div>
             <div id="timer">0.0s</div>
@@ -30,6 +31,8 @@
         <label class="field">Name
             <input type="text" id="playerName" maxlength="24" placeholder="Anonymous" autocomplete="nickname">
         </label>
+        <div id="objectives"></div>
+        <div id="weapon">Unarmed</div>
         <div id="castleWrap">
             <div class="label">Castle map <span class="muted">(M for full view)</span></div>
             <canvas id="castle" width="260" height="190"></canvas>

@@ -30,27 +30,38 @@ Then open http://127.0.0.1:8000.
 
 ## How to play
 
-The five maps are rooms of one castle. Each room has a key that unlocks its
-doors, gold to loot, and stairs (the exit) down to the next room. Stone
-archways are portals into other rooms, and the castle map in the HUD (press
-M for the full view) shows how the rooms connect. You win when every room's
-exit has been reached, in whatever order you explore them.
+The five maps are rooms of one castle. Your mission: steal the war plans
+from the Keep and escape every room. Each room has a key that unlocks its
+doors, gold to loot, and stairs (the exit) to the next room. Stone archways
+are portals into other rooms, and the castle map in the HUD (press M for the
+full view) shows how the rooms connect.
 
-- Guards see in a cone in front of them and pause to look around at patrol
-  corners. Once alerted they chase you for a few seconds.
-- Stand still on crates to hide. Hold Shift to sprint, but sprinting is loud
-  and guards within earshot will come looking.
-- Traps: timed spike plates (watch the tips rise before they fire), tripwires
-  that ring the alarm if you sprint across them, trapdoors that drop you into
-  the room below, gas vents that reverse your controls, crumbling floor that
-  becomes a pit behind you, and swinging blades patrolling corridors.
+- **Objectives.** Every room has side objectives: find all the gold and
+  leave without raising the alarm. Some rooms hold a prisoner to free. The
+  war plans in the Keep are the one required objective; the campaign is won
+  once you hold them and have escaped every room.
+- **Guards** see in a cone in front of them and pause to look around at
+  patrol corners. Once alerted they chase you, and a guard who keeps you in
+  sight for a few seconds raises the alarm.
+- **The alarm** (tripwires, gunshots, or a persistent chase) sends every
+  guard in the room after you and pulls reinforcements from the rooms
+  connected by portals and stairs. Those guards arrive through the matching
+  entrance and are gone from their own rooms for the rest of the campaign.
+- **The pistol** is found in the Barracks, with ammo boxes elsewhere. F or
+  Ctrl fires in the direction you face. Bodies stay where they fall, each
+  kill is 50 points, and every shot raises the alarm.
+- Stand still on crates to hide. Hold Shift to sprint, but sprinting is loud.
+- Traps: timed spike plates, tripwires that ring the alarm if you sprint
+  across them, trapdoors that drop you into the room below, gas vents that
+  reverse your controls, crumbling floor that becomes a pit behind you, and
+  swinging blades patrolling corridors.
 - Three lives per campaign. Each treasure is 100 points, each room 250, and
-  clearing a room with all its gold doubles that bonus.
+  objectives award 200 to 500 on top.
 
 Controls:
 
 - Move: WASD or arrow keys, the on-screen d-pad on touch devices, or a gamepad
-- Shift (or a gamepad shoulder button): sprint
+- Shift (or a gamepad shoulder button): sprint. F, Ctrl, gamepad B or the red touch button: fire
 - Space / Enter / tap / gamepad A: start, continue, resume
 - P or Esc: pause. M: castle map. R: restart the room
 - Type a name in the HUD to appear on the leaderboard
@@ -64,7 +75,11 @@ Rooms live in `database/seeders/LevelSeeder.php` as ASCII art:
 $  treasure    H  hiding spot (crates)         P  player start
 a-z portal: the same letter in two rooms links them both ways
 S  spike plate   T  tripwire   X  trapdoor   G  gas vent   C  crumbling floor
+W  war plans (required objective)   U  pistol   A  ammo box   R  prisoner cell
 ```
+
+Objectives are derived from the tiles when seeding, so a room with an `R`
+automatically gets a "free the prisoner" objective.
 
 Moving blades are listed in the room's `traps` array, and `castle` gives the
 room's column and row on the castle map. The seeder validates every room:
