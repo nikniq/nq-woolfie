@@ -6,6 +6,7 @@ use App\Models\GameRun;
 use App\Models\Level;
 use Database\Seeders\LevelSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class GameRunApiTest extends TestCase
@@ -69,5 +70,35 @@ class GameRunApiTest extends TestCase
             ->assertOk()
             ->assertSeeInOrder(['Looter', '900', 'Fast', '5.00s', 'Slow', '9.00s'])
             ->assertDontSee('Unlucky');
+    }
+
+    public function test_campaign_board_lists_only_full_runs(): void
+    {
+        $levels = Level::orderBy('number')->get();
+        $full = '11111111-1111-4111-8111-111111111111';
+        $partial = '22222222-2222-4222-8222-222222222222';
+        foreach ($levels as $i => $level) {
+            GameRun::create(['level_id' => $level->id, 'player_name' => 'Hero', 'outcome' => 'completed', 'time_ms' => 1000, 'score' => 300, 'campaign' => $full]);
+            if ($i === 0) {
+                GameRun::create(['level_id' => $level->id, 'player_name' => 'Quitter', 'outcome' => 'completed', 'time_ms' => 500, 'score' => 999, 'campaign' => $partial]);
+            }
+        }
+
+        $response = $this->get('/leaderboard')
+            ->assertOk()
+            ->assertSeeInOrder(['Full castle escapes', 'Hero', (string) (300 * $levels->count())]);
+
+        $campaignTable = Str::before(Str::after($response->getContent(), 'Full castle escapes'), 'Level 1');
+        $this->assertStringNotContainsString('Quitter', $campaignTable, 'partial campaigns must not appear on the full-castle board');
+    }
+
+    public function test_run_rejects_malformed_campaign_id(): void
+    {
+        $this->postJson('/api/runs', [
+            'level_id' => $this->level->id,
+            'outcome' => 'completed',
+            'time_ms' => 100,
+            'campaign' => 'not-a-uuid',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['campaign']);
     }
 }

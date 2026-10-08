@@ -17,8 +17,8 @@ class LevelApiTest extends TestCase
 
         $response = $this->getJson('/api/levels');
 
-        $response->assertOk()->assertJsonCount(3, 'data');
-        $this->assertSame([1, 2, 3], array_column($response->json('data'), 'number'));
+        $response->assertOk()->assertJsonCount(5, 'data');
+        $this->assertSame([1, 2, 3, 4, 5], array_column($response->json('data'), 'number'));
 
         foreach ($response->json('data') as $level) {
             $flat = array_merge(...$level['map']);
@@ -44,6 +44,6 @@ class LevelApiTest extends TestCase
     {
         $this->seed(LevelSeeder::class);
 
-        $this->get('/')->assertOk()->assertSee('id="game"', false)->assertSee('/ 3');
+        $this->get('/')->assertOk()->assertSee('id="game"', false)->assertSee('/ 5');
     }
 }

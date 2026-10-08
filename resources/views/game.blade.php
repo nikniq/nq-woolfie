@@ -5,7 +5,8 @@
 @section('content')
 <div id="gameWrap"
      data-levels-url="{{ route('api.levels.index') }}"
-     data-runs-url="{{ route('api.runs.store') }}">
+     data-runs-url="{{ route('api.runs.store') }}"
+     data-sounds='@json($sounds)'>
     <div id="stage">
         <canvas id="game" width="640" height="320"></canvas>
         <div id="touch" aria-label="Touch controls">
@@ -16,7 +17,7 @@
         </div>
     </div>
     <div id="hud">
-        <div id="status">WASD / arrows to move. Grab the key, loot the gold, slip past the guards. R restarts, P pauses.</div>
+        <div id="status">Arrows / WASD move, hold Shift to sprint (noisy). Stand on crates to hide. Key opens doors, gold is points. P pauses, R restarts. Gamepad works too.</div>
         <div id="controls">
             <div id="levelLabel">Level <span id="level">1</span> / {{ $levelCount }}</div>
             <div id="timer">0.0s</div>
@@ -29,6 +30,10 @@
         <label class="field">Name
             <input type="text" id="playerName" maxlength="24" placeholder="Anonymous" autocomplete="nickname">
         </label>
+        <div id="castleWrap">
+            <div class="label">Castle map <span class="muted">(M for full view)</span></div>
+            <canvas id="castle" width="260" height="190"></canvas>
+        </div>
         <div id="info"></div>
         <button id="restart" type="button">Restart level</button>
     </div>
