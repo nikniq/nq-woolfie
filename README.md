@@ -28,10 +28,19 @@ The web root is `public_html/` (not Laravel's default `public/`); point your web
 
 Then open http://127.0.0.1:8000.
 
-## Controls
+## How to play
 
-- Move: WASD or arrow keys
-- Space initialises audio in browsers that require a user gesture
+- Find the key to unlock the doors, grab the gold, and reach the exit.
+- Guards see in a cone in front of them. Stay behind walls and out of their sight;
+  once alerted they chase you for a few seconds.
+- You have three lives per campaign. Each treasure is 100 points, each level 250,
+  and clearing a level with all its gold doubles that bonus.
+
+Controls:
+
+- Move: WASD or arrow keys, or the on-screen d-pad on touch devices
+- Space / Enter / tap: start, continue, resume
+- P or Esc: pause. R: restart the level
 - Type a name in the HUD to appear on the leaderboard
 
 ## Tests

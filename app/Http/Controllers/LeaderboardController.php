@@ -14,6 +14,7 @@ class LeaderboardController extends Controller
 
         $bestRuns = GameRun::query()
             ->where('outcome', GameRun::OUTCOME_COMPLETED)
+            ->orderByDesc('score')
             ->orderBy('time_ms')
             ->get()
             ->groupBy('level_id')

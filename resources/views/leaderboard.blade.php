@@ -17,13 +17,14 @@
         @else
             <table>
                 <thead>
-                    <tr><th>#</th><th>Player</th><th>Time</th><th>When</th></tr>
+                    <tr><th>#</th><th>Player</th><th>Score</th><th>Time</th><th>When</th></tr>
                 </thead>
                 <tbody>
                 @foreach ($runs as $run)
                     <tr>
                         <td>{{ $loop->iteration }}</td>
                         <td>{{ $run->player_name }}</td>
+                        <td>{{ $run->score }}</td>
                         <td>{{ number_format($run->time_ms / 1000, 2) }}s</td>
                         <td>{{ $run->created_at->diffForHumans() }}</td>
                     </tr>

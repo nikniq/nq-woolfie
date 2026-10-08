@@ -25,6 +25,7 @@ class LevelApiTest extends TestCase
             $this->assertContains(Level::TILE_KEY, $flat, "Level {$level['number']} has no key");
             $this->assertContains(Level::TILE_DOOR, $flat, "Level {$level['number']} has no door");
             $this->assertContains(Level::TILE_EXIT, $flat, "Level {$level['number']} has no exit");
+            $this->assertContains(Level::TILE_TREASURE, $flat, "Level {$level['number']} has no treasure");
         }
     }
 

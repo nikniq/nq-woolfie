@@ -20,12 +20,16 @@ class StoreGameRunRequest extends FormRequest
             'player_name' => ['nullable', 'string', 'max:24'],
             'outcome' => ['required', Rule::in([GameRun::OUTCOME_COMPLETED, GameRun::OUTCOME_CAUGHT])],
             'time_ms' => ['required', 'integer', 'min:0', 'max:86400000'],
+            'score' => ['nullable', 'integer', 'min:0', 'max:1000000'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
         $name = trim((string) $this->input('player_name', ''));
-        $this->merge(['player_name' => $name === '' ? 'Anonymous' : $name]);
+        $this->merge([
+            'player_name' => $name === '' ? 'Anonymous' : $name,
+            'score' => (int) $this->input('score', 0),
+        ]);
     }
 }

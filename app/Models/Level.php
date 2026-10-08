@@ -17,6 +17,8 @@ class Level extends Model
 
     public const TILE_EXIT = 4;
 
+    public const TILE_TREASURE = 5;
+
     protected $fillable = ['number', 'name', 'map', 'player_start', 'guards'];
 
     protected function casts(): array

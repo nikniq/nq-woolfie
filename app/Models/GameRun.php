@@ -11,7 +11,7 @@ class GameRun extends Model
 
     public const OUTCOME_CAUGHT = 'caught';
 
-    protected $fillable = ['level_id', 'player_name', 'outcome', 'time_ms'];
+    protected $fillable = ['level_id', 'player_name', 'outcome', 'time_ms', 'score'];
 
     public function level(): BelongsTo
     {

@@ -28,8 +28,10 @@ class GameRunApiTest extends TestCase
             'player_name' => 'BJ',
             'outcome' => 'completed',
             'time_ms' => 12345,
+            'score' => 650,
         ])->assertCreated()
             ->assertJsonPath('data.player_name', 'BJ')
+            ->assertJsonPath('data.score', 650)
             ->assertJsonPath('best_time_ms', 12345)
             ->assertJsonPath('is_personal_best', true);
 
@@ -39,6 +41,7 @@ class GameRunApiTest extends TestCase
             'time_ms' => 20000,
         ])->assertCreated()
             ->assertJsonPath('data.player_name', 'Anonymous')
+            ->assertJsonPath('data.score', 0)
             ->assertJsonPath('best_time_ms', 12345)
             ->assertJsonPath('is_personal_best', false);
 
@@ -55,15 +58,16 @@ class GameRunApiTest extends TestCase
             ->assertJsonValidationErrors(['level_id', 'outcome', 'time_ms']);
     }
 
-    public function test_leaderboard_shows_fastest_escapes_only(): void
+    public function test_leaderboard_ranks_escapes_by_score_then_time(): void
     {
-        GameRun::create(['level_id' => $this->level->id, 'player_name' => 'Fast', 'outcome' => 'completed', 'time_ms' => 5000]);
-        GameRun::create(['level_id' => $this->level->id, 'player_name' => 'Slow', 'outcome' => 'completed', 'time_ms' => 9000]);
-        GameRun::create(['level_id' => $this->level->id, 'player_name' => 'Unlucky', 'outcome' => 'caught', 'time_ms' => 1000]);
+        GameRun::create(['level_id' => $this->level->id, 'player_name' => 'Fast', 'outcome' => 'completed', 'time_ms' => 5000, 'score' => 250]);
+        GameRun::create(['level_id' => $this->level->id, 'player_name' => 'Slow', 'outcome' => 'completed', 'time_ms' => 9000, 'score' => 250]);
+        GameRun::create(['level_id' => $this->level->id, 'player_name' => 'Looter', 'outcome' => 'completed', 'time_ms' => 20000, 'score' => 900]);
+        GameRun::create(['level_id' => $this->level->id, 'player_name' => 'Unlucky', 'outcome' => 'caught', 'time_ms' => 1000, 'score' => 100]);
 
         $this->get('/leaderboard')
             ->assertOk()
-            ->assertSeeInOrder(['Fast', '5.00s', 'Slow', '9.00s'])
+            ->assertSeeInOrder(['Looter', '900', 'Fast', '5.00s', 'Slow', '9.00s'])
             ->assertDontSee('Unlucky');
     }
 }

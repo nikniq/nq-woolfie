@@ -35,6 +35,7 @@ class LevelSeeder extends Seeder
                 'name' => 'The Cellar',
                 'map' => $baseMap,
                 'player_start' => [1, 1],
+                'treasures' => [[4, 3], [13, 3], [9, 7], [16, 5]],
                 'guards' => [
                     ['patrol' => [[9, 1], [9, 3], [9, 6], [9, 1]], 'spd' => 1.4],
                     ['patrol' => [[3, 7], [6, 7], [6, 3], [3, 7]], 'spd' => 1.0],
@@ -45,6 +46,7 @@ class LevelSeeder extends Seeder
                 'name' => 'The Barracks',
                 'map' => $level2Map,
                 'player_start' => [1, 1],
+                'treasures' => [[6, 3], [2, 5], [14, 7], [18, 3], [10, 5]],
                 'guards' => [
                     ['patrol' => [[5, 1], [9, 1], [9, 4], [5, 4]], 'spd' => 1.6],
                     ['patrol' => [[2, 7], [2, 3], [7, 3], [7, 7]], 'spd' => 1.0],
@@ -55,6 +57,7 @@ class LevelSeeder extends Seeder
                 'name' => 'The Keep',
                 'map' => $baseMap,
                 'player_start' => [1, 1],
+                'treasures' => [[3, 3], [8, 3], [12, 7], [16, 3], [6, 7], [18, 5]],
                 'guards' => [
                     ['patrol' => [[9, 1], [9, 6]], 'spd' => 1.8],
                     ['patrol' => [[3, 7], [6, 7]], 'spd' => 1.2],
@@ -65,6 +68,13 @@ class LevelSeeder extends Seeder
 
         foreach ($levels as $level) {
             $level['map'] = $this->placeExtras($level['map']);
+            foreach ($level['treasures'] as [$x, $y]) {
+                if ($level['map'][$y][$x] !== Level::TILE_FLOOR) {
+                    throw new \RuntimeException("Level {$level['number']}: treasure at ($x,$y) is not on floor");
+                }
+                $level['map'][$y][$x] = Level::TILE_TREASURE;
+            }
+            unset($level['treasures']);
 
             Level::updateOrCreate(['number' => $level['number']], $level);
         }
