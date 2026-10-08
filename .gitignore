@@ -1,26 +1,45 @@
-*.log
-.DS_Store
+# --- Environment & secrets ---------------------------------------------
 .env
 .env.backup
 .env.production
-.phpactor.json
-.phpunit.result.cache
-/.codex
-/.cursor/
-/.idea
-/.nova
-/.phpunit.cache
-/.vscode
-/.zed
 /auth.json
+/storage/*.key
+
+# --- Dependencies --------------------------------------------------------
+/vendor
 /node_modules
-/public_html/fonts-manifest.dev.json
+
+# --- Laravel runtime (caches, logs, uploads) -----------------------------
+*.log
+/storage/pail
 /public_html/hot
 /public_html/storage
-/storage/*.key
-/storage/pail
-/vendor
+/public_html/fonts-manifest.dev.json
+# Built assets in /public_html/build ARE committed: shared hosting has no Node.
+
+# --- Local database ------------------------------------------------------
+# (database/.gitignore also excludes *.sqlite*)
+/database/*.sqlite*
+
+# --- Test & tool artefacts -----------------------------------------------
+.phpunit.result.cache
+/.phpunit.cache
 _ide_helper.php
+_ide_helper_models.php
+.phpstorm.meta.php
+.phpactor.json
 Homestead.json
 Homestead.yaml
+
+# --- Editors & AI assistants --------------------------------------------
+/.idea
+/.vscode
+/.nova
+/.zed
+/.cursor/
+/.codex
+/.claude/settings.local.json
+
+# --- OS junk -------------------------------------------------------------
+.DS_Store
 Thumbs.db
