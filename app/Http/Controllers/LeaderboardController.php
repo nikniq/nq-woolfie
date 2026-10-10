@@ -21,7 +21,7 @@ class LeaderboardController extends Controller
             ->map(fn ($runs) => $runs->take(10));
 
         $campaigns = GameRun::query()
-            ->selectRaw('campaign, MAX(player_name) as player_name, SUM(score) as total_score, SUM(time_ms) as total_time, COUNT(DISTINCT level_id) as levels_done, MAX(created_at) as finished_at')
+            ->selectRaw('campaign, MAX(player_name) as player_name, MAX(difficulty) as difficulty, SUM(score) as total_score, SUM(time_ms) as total_time, COUNT(DISTINCT level_id) as levels_done, MAX(created_at) as finished_at')
             ->where('outcome', GameRun::OUTCOME_COMPLETED)
             ->whereNotNull('campaign')
             ->groupBy('campaign')

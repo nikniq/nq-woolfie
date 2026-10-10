@@ -48,3 +48,7 @@ button:hover{background:linear-gradient(#4a4a52,#30303a)}
 #objectives em{color:#888;font-style:normal;font-size:15px}
 #weapon{font-size:18px;color:#ddd;margin-bottom:8px}
 #touch [data-action=fire]{grid-column:3;grid-row:3;background:#5a2020}
+.diff{padding:0 6px;border-radius:3px;font-size:15px;text-transform:uppercase;background:#2a2a30;color:#bbb}
+.diff.easy{color:#9fffa0}
+.diff.hard{color:#f66}
+#music{margin-left:8px}

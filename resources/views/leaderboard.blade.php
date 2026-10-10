@@ -15,13 +15,14 @@
     @else
         <table>
             <thead>
-                <tr><th>#</th><th>Player</th><th>Total score</th><th>Total time</th><th>When</th></tr>
+                <tr><th>#</th><th>Player</th><th>Difficulty</th><th>Total score</th><th>Total time</th><th>When</th></tr>
             </thead>
             <tbody>
             @foreach ($campaigns as $c)
                 <tr>
                     <td>{{ $loop->iteration }}</td>
                     <td>{{ $c->player_name }}</td>
+                    <td><span class="diff {{ $c->difficulty }}">{{ $c->difficulty }}</span></td>
                     <td>{{ $c->total_score }}</td>
                     <td>{{ number_format($c->total_time / 1000, 2) }}s</td>
                     <td>{{ \Illuminate\Support\Carbon::parse($c->finished_at)->diffForHumans() }}</td>
@@ -39,13 +40,14 @@
         @else
             <table>
                 <thead>
-                    <tr><th>#</th><th>Player</th><th>Score</th><th>Time</th><th>When</th></tr>
+                    <tr><th>#</th><th>Player</th><th>Difficulty</th><th>Score</th><th>Time</th><th>When</th></tr>
                 </thead>
                 <tbody>
                 @foreach ($runs as $run)
                     <tr>
                         <td>{{ $loop->iteration }}</td>
                         <td>{{ $run->player_name }}</td>
+                        <td><span class="diff {{ $run->difficulty }}">{{ $run->difficulty }}</span></td>
                         <td>{{ $run->score }}</td>
                         <td>{{ number_format($run->time_ms / 1000, 2) }}s</td>
                         <td>{{ $run->created_at->diffForHumans() }}</td>

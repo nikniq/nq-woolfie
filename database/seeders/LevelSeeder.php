@@ -23,6 +23,10 @@ class LevelSeeder extends Seeder
      * and "no alarm"; W adds a required "steal the war plans", R adds
      * "free the prisoner".
      *
+     * Guards take an optional 'type': guard (default), officer (faster, sees
+     * further, shoots sooner) or dog (fast, hears sprinting from afar, bites
+     * on contact, cannot shoot).
+     *
      * 'traps' lists moving hazards: ['type' => 'blade', 'from' => [x,y], 'to' => [x,y], 'spd' => px/frame]
      *
      * 'castle' => [column, row] places the map on the castle overview; the
@@ -96,7 +100,7 @@ class LevelSeeder extends Seeder
                     '####################',
                 ],
                 'guards' => [
-                    ['patrol' => [[7, 1], [12, 1], [12, 3], [12, 1]], 'spd' => 1.5],
+                    ['patrol' => [[7, 1], [12, 1], [12, 3], [12, 1]], 'spd' => 1.5, 'type' => 'officer'],
                     ['patrol' => [[4, 5], [7, 5], [7, 7], [1, 7], [7, 7], [7, 5]], 'spd' => 1.2],
                     ['patrol' => [[15, 5], [15, 7]], 'spd' => 1.0],
                 ],
@@ -120,7 +124,7 @@ class LevelSeeder extends Seeder
                 'guards' => [
                     ['patrol' => [[5, 1], [12, 1]], 'spd' => 1.7],
                     ['patrol' => [[10, 3], [10, 8]], 'spd' => 1.3],
-                    ['patrol' => [[18, 1], [18, 6]], 'spd' => 1.4],
+                    ['patrol' => [[18, 1], [18, 6]], 'spd' => 1.4, 'type' => 'dog'],
                     ['patrol' => [[12, 6], [14, 6]], 'spd' => 1.1],
                 ],
             ],
@@ -142,7 +146,7 @@ class LevelSeeder extends Seeder
                 ],
                 'guards' => [
                     ['patrol' => [[6, 1], [12, 1]], 'spd' => 1.5],
-                    ['patrol' => [[4, 6], [10, 6]], 'spd' => 1.8],
+                    ['patrol' => [[4, 6], [10, 6]], 'spd' => 1.8, 'type' => 'dog'],
                     ['patrol' => [[13, 4], [16, 4], [14, 4], [14, 1], [14, 4]], 'spd' => 1.2],
                     ['patrol' => [[14, 8], [16, 8]], 'spd' => 1.0],
                 ],
@@ -168,10 +172,10 @@ class LevelSeeder extends Seeder
                     '####################',
                 ],
                 'guards' => [
-                    ['patrol' => [[5, 1], [8, 1], [8, 3], [8, 1]], 'spd' => 1.6],
+                    ['patrol' => [[5, 1], [8, 1], [8, 3], [8, 1]], 'spd' => 1.6, 'type' => 'officer'],
                     ['patrol' => [[11, 3], [11, 5]], 'spd' => 1.4],
                     ['patrol' => [[16, 5], [18, 5], [18, 2], [18, 5]], 'spd' => 1.5],
-                    ['patrol' => [[1, 8], [7, 8]], 'spd' => 1.2],
+                    ['patrol' => [[1, 8], [7, 8]], 'spd' => 1.2, 'type' => 'dog'],
                     ['patrol' => [[9, 8], [13, 8]], 'spd' => 1.3],
                 ],
             ],

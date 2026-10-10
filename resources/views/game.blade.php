@@ -26,7 +26,8 @@
         <div id="controls">
             <div>Score <strong id="score">0</strong></div>
             <div>Lives <span id="lives">♥♥♥</span></div>
-            <label><input type="checkbox" id="sound" checked> Sound</label>
+            <label><input type="checkbox" id="sound" checked> SFX</label>
+            <label id="music"><input type="checkbox" id="musicToggle" checked> Music</label>
         </div>
         <label class="field">Name
             <input type="text" id="playerName" maxlength="24" placeholder="Anonymous" autocomplete="nickname">

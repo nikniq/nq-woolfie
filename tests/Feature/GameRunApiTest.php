@@ -101,4 +101,14 @@ class GameRunApiTest extends TestCase
             'campaign' => 'not-a-uuid',
         ])->assertUnprocessable()->assertJsonValidationErrors(['campaign']);
     }
+
+    public function test_difficulty_is_stored_and_validated(): void
+    {
+        $this->postJson('/api/runs', ['level_id' => $this->level->id, 'outcome' => 'completed', 'time_ms' => 100, 'difficulty' => 'hard'])
+            ->assertCreated()->assertJsonPath('data.difficulty', 'hard');
+        $this->postJson('/api/runs', ['level_id' => $this->level->id, 'outcome' => 'completed', 'time_ms' => 100])
+            ->assertCreated()->assertJsonPath('data.difficulty', 'normal');
+        $this->postJson('/api/runs', ['level_id' => $this->level->id, 'outcome' => 'completed', 'time_ms' => 100, 'difficulty' => 'nightmare'])
+            ->assertUnprocessable()->assertJsonValidationErrors(['difficulty']);
+    }
 }

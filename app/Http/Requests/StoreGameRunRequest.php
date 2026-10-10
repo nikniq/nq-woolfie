@@ -22,6 +22,7 @@ class StoreGameRunRequest extends FormRequest
             'time_ms' => ['required', 'integer', 'min:0', 'max:86400000'],
             'score' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'campaign' => ['nullable', 'uuid'],
+            'difficulty' => ['nullable', Rule::in(GameRun::DIFFICULTIES)],
         ];
     }
 
@@ -31,6 +32,7 @@ class StoreGameRunRequest extends FormRequest
         $this->merge([
             'player_name' => $name === '' ? 'Anonymous' : $name,
             'score' => (int) $this->input('score', 0),
+            'difficulty' => $this->input('difficulty') ?: 'normal',
         ]);
     }
 }

@@ -8,7 +8,19 @@ const FLOOR = 0, WALL = 1, DOOR = 2, KEY = 3, EXIT = 4, TREASURE = 5, HIDE = 6, 
 const SPIKES = 8, TRIPWIRE = 9, TRAPDOOR = 10, GAS = 11, CRUMBLE = 12, PIT = 13;
 const PLANS = 14, GUN = 15, AMMO = 16, PRISONER = 17;
 const GUN_AMMO = 6, AMMO_BOX = 4, BULLET_SPEED = 10, SHOT_NOISE = 320, KILL_POINTS = 50;
-const ALARM_TIME = 20, ALARM_CHASE = 2.5, MAX_REINFORCEMENTS = 3;
+const ALARM_TIME = 20, ALARM_CHASE = 2.5;
+const DIFFICULTY = {
+    easy: { label: 'Easy', lives: 5, speed: 0.85, sight: 0.85, shoot: false, cooldown: 2.2, aim: 1.2, reinforcements: 1, alarmChase: 4 },
+    normal: { label: 'Normal', lives: 3, speed: 1, sight: 1, shoot: true, cooldown: 1.6, aim: 0.8, reinforcements: 3, alarmChase: 2.5 },
+    hard: { label: 'Hard', lives: 2, speed: 1.15, sight: 1.15, shoot: true, cooldown: 1.1, aim: 0.5, reinforcements: 4, alarmChase: 1.8 },
+};
+const GUARD_TYPES = {
+    guard: { speed: 1, sight: 1, hearing: 1, gun: true, cooldown: 1, aim: 1 },
+    officer: { speed: 1.25, sight: 1.3, hearing: 1, gun: true, cooldown: 0.7, aim: 0.6 },
+    dog: { speed: 1.7, sight: 0.7, hearing: 2.2, gun: false, cooldown: 1, aim: 1 },
+};
+const GUARD_RANGE = 210, ENEMY_BULLET_SPEED = 7, GUARD_SPREAD = 0.09;
+const SAVE_KEY = 'woolfie.campaign';
 const SPIKE_PERIOD = 2.6, SPIKE_WARN = 1.7, SPIKE_UP = 2.0; // seconds within each cycle
 const GAS_PERIOD = 4.5, GAS_ON = 1.6, GAS_RADIUS = TILE * 1.4, DIZZY_TIME = 3.5;
 const TREASURE_POINTS = 100;
@@ -78,6 +90,10 @@ export async function startGame() {
     let onPortal = false;
     let VW = 640, VH = 320; // logical view size (map pixels)
     let deathAt = 0, doorsOpenedAt = -1, motes = [];
+    let enemyBullets = [];
+    let difficulty = 'normal'; try { if (DIFFICULTY[localStorage.getItem('woolfie.difficulty')]) difficulty = localStorage.getItem('woolfie.difficulty'); } catch {}
+    const diff = () => DIFFICULTY[difficulty];
+    let hasSave = false; try { hasSave = !!localStorage.getItem(SAVE_KEY); } catch {}
     let blades = [], bullets = [], bodies = [], reinforcements = [];
     let objectivesDone = new Map(); // levelIndex -> Set(objective ids)
     let levelAlarmed = false, alarmUntil = -1, sirenNext = 0, kills = 0, muzzle = 0;
@@ -199,14 +215,35 @@ export async function startGame() {
         const guardCfg = { coat: '#5c6b4e', coatLight: '#7d8c6c', trousers: '#3e4a36', skin: '#e8b990', helmet: '#4d5050', helmetLight: '#7b8080', rifle: true, belt: true };
         dirs.forEach((d, di) => { for (let f = 0; f < 4; f++) figure((di % 2) * 4 * TILE + f * TILE, TILE + Math.floor(di / 2) * TILE, d, f, playerCfg); });
         dirs.forEach((d, di) => { for (let f = 0; f < 2; f++) figure(di * 2 * TILE + f * TILE, TILE * 3, d, f, guardCfg); });
+        const officerCfg = { coat: '#2e2e36', coatLight: '#4a4a56', trousers: '#1e1e26', skin: '#e8b990', helmet: '#1a1a1e', helmetLight: '#3a3a44', rifle: true, belt: true };
+        dirs.forEach((d, di) => { for (let f = 0; f < 2; f++) figure((8 + di * 2 + f) * TILE, TILE * 3, d, f, officerCfg); });
+        const dog = (x, y, dir, frame) => {
+            g.clearRect(x, y, TILE, TILE);
+            g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(x + 16, y + 27, 10, 3, 0, 0, Math.PI * 2); g.fill();
+            const l = frame % 2 ? 2 : -2;
+            if (dir === 'left' || dir === 'right') {
+                const flip = dir === 'left';
+                g.save(); if (flip) { g.translate(x + TILE, y); g.scale(-1, 1); } else g.translate(x, y);
+                px(6, 14, 20, 9, '#6b4a24'); px(24, 10, 7, 7, '#7a5530'); px(29, 13, 2, 2, '#111'); px(25, 8, 3, 3, '#4b3217'); px(2, 12, 4, 2, '#6b4a24');
+                px(8 + l, 22, 3, 6, '#4b3217'); px(14 - l, 22, 3, 6, '#4b3217'); px(19 + l, 22, 3, 6, '#4b3217'); px(24 - l, 22, 3, 6, '#4b3217');
+                g.restore();
+            } else {
+                px(x + 11, y + 8, 10, 16, '#6b4a24'); px(x + 10, dir === 'down' ? y + 4 : y + 20, 12, 7, '#7a5530');
+                if (dir === 'down') { px(x + 12, y + 7, 2, 2, '#111'); px(x + 18, y + 7, 2, 2, '#111'); px(x + 10, y + 2, 3, 3, '#4b3217'); px(x + 19, y + 2, 3, 3, '#4b3217'); }
+                px(x + 10 + l, y + 24, 3, 5, '#4b3217'); px(x + 19 - l, y + 24, 3, 5, '#4b3217');
+            }
+        };
+        dirs.forEach((d, di) => { for (let f = 0; f < 2; f++) dog((16 + di * 2 + f) * TILE, TILE * 3, d, f); });
 
         const img = new Image(); img.src = c.toDataURL();
-        const pf = {}, gf = {};
+        const pf = {}, gf = {}, of = {}, df = {};
         dirs.forEach((d, di) => {
             pf[d] = [0, 1, 2, 3].map((f) => ({ x: (di % 2) * 4 + f, y: 1 + Math.floor(di / 2) }));
             gf[d] = [0, 1].map((f) => ({ x: di * 2 + f, y: 3 }));
+            of[d] = [0, 1].map((f) => ({ x: 8 + di * 2 + f, y: 3 }));
+            df[d] = [0, 1].map((f) => ({ x: 16 + di * 2 + f, y: 3 }));
         });
-        return { img, frames: { tiles: { [WALL]: 4, [DOOR]: 5, [KEY]: 6, [EXIT]: 7, [TREASURE]: 8, [HIDE]: 9, [PORTAL]: 10, [SPIKES]: 11, [TRIPWIRE]: 14, [TRAPDOOR]: 15, [GAS]: 16, [CRUMBLE]: 17, [PIT]: 18, [PLANS]: 19, [GUN]: 20, [AMMO]: 21, [PRISONER]: 22 }, spikes: [11, 12, 13], wallFace: 23, decals: [24, 25, 26, 27], decor: [28, 29, 30], doorOpen: 31, player: pf, guard: gf } };
+        return { img, frames: { tiles: { [WALL]: 4, [DOOR]: 5, [KEY]: 6, [EXIT]: 7, [TREASURE]: 8, [HIDE]: 9, [PORTAL]: 10, [SPIKES]: 11, [TRIPWIRE]: 14, [TRAPDOOR]: 15, [GAS]: 16, [CRUMBLE]: 17, [PIT]: 18, [PLANS]: 19, [GUN]: 20, [AMMO]: 21, [PRISONER]: 22 }, spikes: [11, 12, 13], wallFace: 23, decals: [24, 25, 26, 27], decor: [28, 29, 30], doorOpen: 31, player: pf, guard: gf, officer: of, dog: df } };
     }
     const sheet = createSpriteSheet();
     const sprites = { sheet: sheet.img, frames: sheet.frames, ready: false };
@@ -281,8 +318,44 @@ export async function startGame() {
         siren: () => { tone({ freq: 520, dur: 0.35, type: 'square', vol: 0.35 }); tone({ freq: 660, dur: 0.35, type: 'square', vol: 0.35, delay: 0.38 }); },
         free: () => { [660, 880, 1100, 1320].forEach((f, i) => tone({ freq: f, dur: 0.1, type: 'triangle', delay: i * 0.09 })); },
         plans: () => { [392, 523, 659, 784, 1047].forEach((f, i) => tone({ freq: f, dur: i === 4 ? 0.5 : 0.11, type: 'square', delay: i * 0.12 })); },
+        bark: () => { noise({ dur: 0.08, vol: 0.9, filter: 700, q: 2 }); tone({ freq: 520, to: 300, dur: 0.09, type: 'sawtooth', vol: 0.8 }); noise({ dur: 0.1, vol: 0.9, filter: 900, q: 2, delay: 0.14 }); tone({ freq: 560, to: 320, dur: 0.1, type: 'sawtooth', vol: 0.8, delay: 0.14 }); },
+        heartbeat: () => { tone({ freq: 60, to: 40, dur: 0.12, type: 'sine', vol: 1.2 }); tone({ freq: 55, to: 38, dur: 0.16, type: 'sine', vol: 0.9, delay: 0.18 }); },
         reinforce: () => { tone({ freq: 90, to: 60, dur: 0.3, type: 'sawtooth', vol: 0.7 }); noise({ dur: 0.25, vol: 0.5, filter: 600 }); tone({ freq: 330, to: 250, dur: 0.14, type: 'sawtooth', delay: 0.3 }); },
     };
+    // Ambient music: a slow drone of detuned voices through a low-pass filter
+    // and a sparse minor-key melody, all procedural. A music.(mp3|ogg|wav) in
+    // public_html/sounds replaces it with a looped track.
+    const musicToggle = document.getElementById('musicToggle');
+    let music = null, melodyNext = 0, heartbeatNext = 0;
+    function startMusic() {
+        if (music || !audioCtx) return;
+        const out = audioCtx.createGain(); out.gain.value = 0; out.connect(audioCtx.destination);
+        if (sampleFiles.music) { const src = audioCtx.createBufferSource(); src.buffer = sampleFiles.music; src.loop = true; src.connect(out); src.start(); music = { out, filt: null }; out.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 3); return; }
+        const filt = audioCtx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 320; filt.Q.value = 2; filt.connect(out);
+        const lfo = audioCtx.createOscillator(); lfo.frequency.value = 0.07; const lfoGain = audioCtx.createGain(); lfoGain.gain.value = 120; lfo.connect(lfoGain); lfoGain.connect(filt.frequency); lfo.start();
+        [55, 55.3, 82.4, 110.5].forEach((f, i) => { const o = audioCtx.createOscillator(); o.type = i < 2 ? 'sawtooth' : 'triangle'; o.frequency.value = f; const g = audioCtx.createGain(); g.gain.value = i < 2 ? 0.12 : 0.07; o.connect(g); g.connect(filt); o.start(); });
+        music = { out, filt };
+        out.gain.linearRampToValueAtTime(0.6, audioCtx.currentTime + 4);
+    }
+    function updateMusic() {
+        if (!audioCtx) return;
+        const want = !!musicToggle?.checked && phase !== 'title';
+        if (want && !music) startMusic();
+        if (music) {
+            const tense = alarmUntil > time || guards.some((g) => g.state === 'alert');
+            music.out.gain.setTargetAtTime(want ? (phase === 'playing' ? (tense ? 0.75 : 0.5) : 0.25) : 0, audioCtx.currentTime, 0.8);
+            if (music.filt) music.filt.frequency.setTargetAtTime(tense ? 900 : 320, audioCtx.currentTime, 1.5);
+            if (want && !sampleFiles.music && phase === 'playing' && time >= melodyNext) {
+                const scale = tense ? [220, 233, 261, 311, 349] : [110, 130.8, 146.8, 164.8, 196]; const f = scale[Math.floor(Math.random() * scale.length)];
+                tone({ freq: f, dur: tense ? 0.5 : 1.6, type: tense ? 'square' : 'triangle', vol: tense ? 0.25 : 0.18 });
+                melodyNext = time + (tense ? 0.4 + Math.random() * 0.5 : 2.5 + Math.random() * 4);
+            }
+        }
+        if (phase === 'playing' && soundCheckbox.checked && time >= heartbeatNext) {
+            let nearest = Infinity; for (const g of guards) nearest = Math.min(nearest, Math.hypot(g.px - player.px, g.py - player.py));
+            if (nearest < 150) { synth.heartbeat(); heartbeatNext = time + (nearest < 70 ? 0.5 : 0.9); } else heartbeatNext = time + 0.3;
+        }
+    }
     function playSound(name) {
         if (!soundCheckbox.checked) return;
         ensureAudio(); if (!audioCtx) return;
@@ -300,7 +373,7 @@ export async function startGame() {
     const spawnParticles = (x, y, n, col, speed = 60) => { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = speed * (0.4 + Math.random()); particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: 0.5 + Math.random() * 0.5, col }); } };
     const popup = (text, x, y, col = '#ffe066') => popups.push({ text, x, y, life: 1.1, col });
 
-    const freshGuard = (g) => ({ patrol: g.patrol.slice(), i: 0, spd: g.spd, state: 'calm', path: [], pathIdx: 0, lastSeen: null, wait: 0, px: g.patrol[0][0] * TILE, py: g.patrol[0][1] * TILE, dir: 'down', frameIdx: 0, frameTimer: 0 });
+    const freshGuard = (g) => ({ patrol: g.patrol.slice(), i: 0, spd: g.spd, type: GUARD_TYPES[g.type] ? g.type : 'guard', state: 'calm', path: [], pathIdx: 0, lastSeen: null, wait: 0, px: g.patrol[0][0] * TILE, py: g.patrol[0][1] * TILE, dir: 'down', frameIdx: 0, frameTimer: 0, cooldown: 0, aimTimer: 0 });
     function makeRoomState(i) {
         const lvl = levels[i];
         return { map: lvl.map.map((r) => r.slice()), hasKey: false, treasureFound: 0, levelScore: 0, alarmed: false, bodies: [],
@@ -329,7 +402,7 @@ export async function startGame() {
         treasureFound = st.treasureFound; levelScore = st.levelScore; levelAlarmed = st.alarmed;
         guards = st.guards.map((g) => ({ ...g, path: [...(g.path ?? [])] }));
         blades = st.blades.map((b) => ({ ...b })); bodies = st.bodies.map((b) => ({ ...b }));
-        bullets = []; reinforcements = []; alarmUntil = -1; muzzle = 0;
+        bullets = []; enemyBullets = []; reinforcements = []; alarmUntil = -1; muzzle = 0;
         onPortal = !!fromPortal;
         dizzy = 0; lastTile = [player.x, player.y]; trippedAt = -1;
         if (!resume) { runStart = now(); runReported = false; message = ''; }
@@ -339,8 +412,30 @@ export async function startGame() {
         phase = 'playing';
     }
 
+    function saveCampaign() {
+        try {
+            saveState();
+            localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, campaignId, difficulty, score, lives, levelIndex, kills, completed: [...completed], visited: [...visited], objectivesDone: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), levelStates: [...levelStates.entries()], gun: player.gun, ammo: player.ammo, savedAt: Date.now() }));
+            hasSave = true;
+        } catch { /* storage unavailable */ }
+    }
+    function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch {} hasSave = false; }
+    function resumeCampaign() {
+        let d = null; try { d = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch {}
+        if (!d || d.v !== 1 || d.levelIndex >= levels.length) { clearSave(); return false; }
+        ensureAudio();
+        campaignId = d.campaignId; difficulty = DIFFICULTY[d.difficulty] ? d.difficulty : 'normal'; score = d.score; lives = d.lives; kills = d.kills ?? 0;
+        completed = new Set(d.completed); visited = new Set(d.visited); objectivesDone = new Map(d.objectivesDone.map(([k, v]) => [k, new Set(v)]));
+        levelStates = new Map(d.levelStates); player.gun = d.gun; player.ammo = d.ammo;
+        levelIndex = d.levelIndex;
+        const target = completed.has(levelIndex) ? nextTarget() : levelIndex;
+        loadLevel(target === -1 ? levelIndex : target, { resume: true });
+        message = 'Campaign resumed.';
+        return true;
+    }
     function startCampaign() {
-        score = 0; lives = MAX_LIVES; completed = new Set(); visited = new Set(); levelStates = new Map(); objectivesDone = new Map(); kills = 0; player.gun = false; player.ammo = 0;
+        clearSave();
+        score = 0; lives = diff().lives; completed = new Set(); visited = new Set(); levelStates = new Map(); objectivesDone = new Map(); kills = 0; player.gun = false; player.ammo = 0;
         campaignId = (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`.slice(0, 36));
         loadLevel(0);
     }
@@ -348,7 +443,7 @@ export async function startGame() {
     async function reportRun(outcome) {
         if (runReported) return;
         runReported = true;
-        const payload = { level_id: levels[levelIndex].id, player_name: nameInput.value, outcome, time_ms: Math.round(elapsedMs()), score: levelScore, campaign: campaignId };
+        const payload = { level_id: levels[levelIndex].id, player_name: nameInput.value, outcome, time_ms: Math.round(elapsedMs()), score: levelScore, campaign: campaignId, difficulty };
         try {
             const res = await fetch(api.runs, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': api.csrf }, body: JSON.stringify(payload) });
             if (!res.ok) return;
@@ -380,8 +475,8 @@ export async function startGame() {
         playSound('win'); spawnParticles(player.px + 16, player.py + 16, 30, '#6c9be0', 90);
         reportRun('completed');
         const miss = missingRequired();
-        if (nextTarget() === -1) phase = 'won';
-        else { phase = 'levelclear'; if (completed.size === levels.length && miss.length) message += `\nStill needed: ${miss[0].obj.label} (${levels[miss[0].level].name})`; }
+        if (nextTarget() === -1) { phase = 'won'; clearSave(); }
+        else { phase = 'levelclear'; saveCampaign(); if (completed.size === levels.length && miss.length) message += `\nStill needed: ${miss[0].obj.label} (${levels[miss[0].level].name})`; }
     }
     function caught() { die('Caught by a guard!'); }
     function die(reason) {
@@ -391,7 +486,7 @@ export async function startGame() {
         levelStates.delete(levelIndex);
         spawnParticles(player.px + 16, player.py + 16, 20, '#ff4040', 80);
         reportRun('caught');
-        if (lives <= 0) { phase = 'gameover'; playSound('gameover'); } else { phase = 'dead'; playSound('caught'); }
+        if (lives <= 0) { phase = 'gameover'; playSound('gameover'); clearSave(); } else { phase = 'dead'; playSound('caught'); saveCampaign(); }
     }
     function travel(portal) {
         saveState();
@@ -399,6 +494,7 @@ export async function startGame() {
         const back = (levels[dest].portals ?? []).find((p) => p.id === portal.id) ?? null;
         playSound('portal');
         enterRoom(dest, back, `Entered ${levels[dest].name}`);
+        saveCampaign();
     }
     function enterRoom(dest, at, note) {
         loadLevel(dest, { fromPortal: at, resume: levelStates.has(dest) });
@@ -434,7 +530,7 @@ export async function startGame() {
         if (levelIndex + 1 < levels.length) { let exit = null; map.forEach((r, y) => r.forEach((t, x) => { if (t === EXIT) exit = [x, y]; })); if (exit) entrances.push({ room: levelIndex + 1, at: exit }); }
         let n = 0;
         for (const e of entrances) {
-            if (n >= MAX_REINFORCEMENTS) break;
+            if (n >= diff().reinforcements) break;
             const st = roomState(e.room);
             if (!st.guards.length) continue;
             const g = st.guards.shift(); // that guard is now gone from its own room
@@ -475,7 +571,7 @@ export async function startGame() {
                 for (let k = 0; k < guards.length; k++) {
                     const g = guards[k];
                     if (Math.hypot(g.px + 16 - b.x, g.py + 16 - b.y) < 13) {
-                        guards.splice(k, 1); bodies.push({ px: g.px, py: g.py, dir: g.dir, born: time }); kills++;
+                        guards.splice(k, 1); bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time }); kills++;
                         score += KILL_POINTS; levelScore += KILL_POINTS; playSound('hit');
                         spawnParticles(g.px + 16, g.py + 16, 16, '#c02020', 70); popup(`+${KILL_POINTS}`, g.px + 16, g.py - 6, '#ff8080');
                         return false;
@@ -505,6 +601,8 @@ export async function startGame() {
         if (e.target === nameInput) return;
         const k = e.key.toLowerCase();
         keysPressed[k] = true;
+        if (phase === 'title' && (k === '1' || k === '2' || k === '3')) { difficulty = ['easy', 'normal', 'hard'][+k - 1]; try { localStorage.setItem('woolfie.difficulty', difficulty); } catch {} return; }
+        if (phase === 'title' && k === 'c' && hasSave) { resumeCampaign(); return; }
         if (k === ' ' || k === 'enter') { e.preventDefault(); advance(); }
         else if (k === 'p' || k === 'escape') togglePause();
         else if (k === 'm') { if (phase === 'playing') togglePause('map'); else if (phase === 'map') togglePause(); }
@@ -568,7 +666,7 @@ export async function startGame() {
         }
     }
     function moveGuardToward(g, tx, ty) {
-        const spd = g.spd * (g.state === 'alert' ? 1.35 : 1);
+        const spd = g.spd * GUARD_TYPES[g.type ?? 'guard'].speed * diff().speed * (g.state === 'alert' ? 1.35 : 1);
         const dxg = tx - g.px, dyg = ty - g.py, dist = Math.hypot(dxg, dyg);
         if (dist < 2) { g.px = tx; g.py = ty; return true; }
         g.px += (dxg / dist) * Math.min(spd, dist); g.py += (dyg / dist) * Math.min(spd, dist); g.dir = dirFromVec(dxg, dyg);
@@ -585,7 +683,19 @@ export async function startGame() {
         pollGamepad();
         if (phase !== 'playing') return;
         if (muzzle > 0) muzzle -= dt;
+        updateMusic();
         updateBullets(dt); spawnReinforcements();
+        enemyBullets = enemyBullets.filter((b) => {
+            b.life -= dt; if (b.life <= 0) return false;
+            for (let i = 0; i < 2; i++) {
+                b.x += b.vx / 2; b.y += b.vy / 2;
+                const t = tileAt(Math.floor(b.x / TILE), Math.floor(b.y / TILE));
+                if (t === WALL || (t === DOOR && !player.hasKey)) { spawnParticles(b.x, b.y, 4, '#ffd080', 40); return false; }
+                if (Math.hypot(player.px + 16 - b.x, player.py + 16 - b.y) < 11) { playSound('hit'); die('Shot by a guard!'); return false; }
+            }
+            return true;
+        });
+        if (phase !== 'playing') return;
         if (alarmUntil > time && time >= sirenNext) { playSound('siren'); sirenNext = time + 1.5; }
 
         let dx = 0, dy = 0;
@@ -649,21 +759,35 @@ export async function startGame() {
         for (const g of guards) {
             const gx = Math.floor((g.px + TILE / 2) / TILE), gy = Math.floor((g.py + TILE / 2) / TILE);
             const vx = pcx - (g.px + TILE / 2), vy = pcy - (g.py + TILE / 2), d = Math.hypot(vx, vy);
+            const gt = GUARD_TYPES[g.type ?? 'guard'];
+            const sight = VIEW_DIST * gt.sight * diff().sight;
             let canSee = false;
-            if (d < VIEW_DIST && !player.hidden) {
+            if (d < sight && !player.hidden) {
                 let ang = Math.atan2(vy, vx) - DIR_ANGLE[g.dir]; ang = Math.atan2(Math.sin(ang), Math.cos(ang));
                 const inCone = g.state === 'alert' || d < TILE || Math.abs(ang) < VIEW_FOV / 2;
                 canSee = inCone && !rayBlocked(gx, gy, player.x, player.y);
             }
-            const heard = player.sprinting && d < SPRINT_NOISE;
+            const heard = player.sprinting && d < SPRINT_NOISE * gt.hearing;
             if (canSee || heard) {
-                if (g.state !== 'alert') { playSound('alert'); message = heard && !canSee ? 'A guard heard you!' : 'Spotted!'; g.alertAt = time; }
-                if (canSee && time - (g.alertAt ?? time) > ALARM_CHASE && alarmUntil <= time) raiseAlarm('A guard raised the alarm!');
+                if (g.state !== 'alert') { playSound(g.type === 'dog' ? 'bark' : 'alert'); message = g.type === 'dog' ? 'A dog caught your scent!' : heard && !canSee ? 'A guard heard you!' : 'Spotted!'; g.alertAt = time; }
+                if (canSee && time - (g.alertAt ?? time) > diff().alarmChase && alarmUntil <= time) raiseAlarm('A guard raised the alarm!');
                 g.state = 'alert'; g.wait = 0; g.lastSeen = { x: player.x, y: player.y, time: now() };
                 const tail = g.path[g.path.length - 1];
                 if (!tail || tail[0] !== player.x || tail[1] !== player.y) { const path = astar(gx, gy, player.x, player.y); if (path && path.length > 1) { g.path = path; g.pathIdx = 1; } }
             }
-            if (g.state === 'alert') {
+            g.cooldown = Math.max(0, (g.cooldown ?? 0) - dt);
+            let aiming = false;
+            if (g.state === 'alert' && canSee && gt.gun && diff().shoot && d < GUARD_RANGE && d > TILE) {
+                aiming = true; g.aimTimer = (g.aimTimer ?? 0) + dt; g.dir = dirFromVec(vx, vy);
+                if (g.aimTimer > diff().aim * gt.aim && g.cooldown <= 0) {
+                    g.cooldown = diff().cooldown * gt.cooldown; g.flash = 0.07; playSound('shoot');
+                    const a = Math.atan2(vy, vx) + (Math.random() - 0.5) * 2 * GUARD_SPREAD;
+                    enemyBullets.push({ x: g.px + 16 + Math.cos(a) * 12, y: g.py + 16 + Math.sin(a) * 12, vx: Math.cos(a) * ENEMY_BULLET_SPEED, vy: Math.sin(a) * ENEMY_BULLET_SPEED, life: 1.5 });
+                }
+            } else g.aimTimer = 0;
+            if (g.flash > 0) g.flash -= dt;
+            if (aiming) { /* stands and fires; a guard within a tile rushes in instead */ }
+            else if (g.state === 'alert') {
                 if (g.path && g.pathIdx < g.path.length) { if (moveGuardToward(g, g.path[g.pathIdx][0] * TILE, g.path[g.pathIdx][1] * TILE)) g.pathIdx++; }
                 else if (g.lastSeen && now() - g.lastSeen.time > ALERT_MEMORY_MS) {
                     g.state = 'calm'; g.path = []; g.pathIdx = 0; g.alertAt = null;
@@ -678,10 +802,10 @@ export async function startGame() {
                 if (moveGuardToward(g, target[0] * TILE, target[1] * TILE)) { g.i = (g.i + 1) % g.patrol.length; g.wait = WAYPOINT_WAIT; }
             }
             g.frameTimer += dt;
-            const walking = g.state === 'alert' || g.wait <= 0;
+            const walking = (g.state === 'alert' && !aiming) || (g.state !== 'alert' && g.wait <= 0);
             if (walking && g.frameTimer > (g.state === 'alert' ? 0.12 : 0.2)) { g.frameTimer = 0; g.frameIdx = (g.frameIdx + 1) % 2; }
             if (!walking) g.frameIdx = 0;
-            if (Math.hypot(pcx - (g.px + TILE / 2), pcy - (g.py + TILE / 2)) < 14) { caught(); return; }
+            if (Math.hypot(pcx - (g.px + TILE / 2), pcy - (g.py + TILE / 2)) < 14) { die(g.type === 'dog' ? 'Mauled by a guard dog!' : 'Caught by a guard!'); return; }
         }
     }
 
@@ -747,6 +871,8 @@ export async function startGame() {
         for (const b of blades) hole(b.px + 16, b.py + 16, 30, 0.5);
         if (muzzle > 0) hole(player.px + 16, player.py + 16, 220, 0.9);
         for (const b of bullets) hole(b.x, b.y, 24, 0.6);
+        for (const b of enemyBullets) hole(b.x, b.y, 24, 0.6);
+        for (const g of guards) if (g.flash > 0) hole(g.px + 16, g.py + 16, 160, 0.8);
         for (const g of guards) { const cx = g.px + 16, cy = g.py + 16, a = DIR_ANGLE[g.dir]; lctx.fillStyle = 'rgba(0,0,0,0.55)'; lctx.beginPath(); lctx.moveTo(cx, cy); lctx.arc(cx, cy, VIEW_DIST * 0.9, a - VIEW_FOV / 2, a + VIEW_FOV / 2); lctx.closePath(); lctx.fill(); hole(cx, cy, 40, 0.6); }
         ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(light, 0, 0); ctx.restore();
     }
@@ -828,7 +954,7 @@ export async function startGame() {
             ctx.fillStyle = '#444'; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill(); ctx.restore();
         }
         guards.forEach(drawCone);
-        for (const b of bodies) { const k = b.born === undefined ? 1 : Math.min(1, (time - b.born) / 0.35); ctx.save(); ctx.translate(b.px + 16, b.py + 16); ctx.rotate((Math.PI / 2) * k); ctx.globalAlpha = 0.85; ctx.fillStyle = 'rgba(120,10,10,0.5)'; ctx.beginPath(); ctx.ellipse(0, 4, 14, 8, 0, 0, Math.PI * 2); ctx.fill(); if (sprites.ready) blit(sprites.frames.guard[b.dir][0], -16, -16); ctx.restore(); }
+        for (const b of bodies) { const k = b.born === undefined ? 1 : Math.min(1, (time - b.born) / 0.35); ctx.save(); ctx.translate(b.px + 16, b.py + 16); ctx.rotate((Math.PI / 2) * k); ctx.globalAlpha = 0.85; ctx.fillStyle = 'rgba(120,10,10,0.5)'; ctx.beginPath(); ctx.ellipse(0, 4, 14, 8, 0, 0, Math.PI * 2); ctx.fill(); if (sprites.ready) blit((sprites.frames[b.type] ?? sprites.frames.guard)[b.dir][0], -16, -16); ctx.restore(); }
         if (sprites.ready) {
             ctx.save(); ctx.globalAlpha = player.hidden ? 0.45 : 1;
             if (!player.alive && (phase === 'dead' || phase === 'gameover')) { const k = Math.min(1, (time - deathAt) / 0.4); ctx.translate(player.px + 16, player.py + 16); ctx.rotate(-(Math.PI / 2) * k); ctx.translate(-16, -16); blit(sprites.frames.player[player.dir][0], 0, 0); }
@@ -837,10 +963,12 @@ export async function startGame() {
         }
         else { ctx.fillStyle = player.alive ? '#ffdd00' : '#777'; ctx.fillRect(player.px + 6, player.py + 6, TILE - 12, TILE - 12); }
         if (muzzle > 0) { const a = DIR_ANGLE[player.dir]; ctx.fillStyle = '#fff3a8'; ctx.beginPath(); ctx.arc(player.px + 16 + Math.cos(a) * 16, player.py + 16 + Math.sin(a) * 16, 6, 0, Math.PI * 2); ctx.fill(); }
+        for (const b of enemyBullets) { ctx.strokeStyle = '#ff9050'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x - b.vx, b.y - b.vy); ctx.lineTo(b.x, b.y); ctx.stroke(); }
         for (const b of bullets) { ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x - b.vx, b.y - b.vy); ctx.lineTo(b.x, b.y); ctx.stroke(); }
         guards.forEach((g) => {
-            if (sprites.ready) blit(sprites.frames.guard[g.dir][g.frameIdx], g.px, g.py);
+            if (sprites.ready) blit((sprites.frames[g.type] ?? sprites.frames.guard)[g.dir][g.frameIdx], g.px, g.py);
             else { ctx.fillStyle = g.state === 'alert' ? '#ff5555' : '#c33'; ctx.fillRect(g.px + 6, g.py + 6, TILE - 12, TILE - 12); }
+            if (g.flash > 0) { const a = DIR_ANGLE[g.dir]; ctx.fillStyle = '#fff3a8'; ctx.beginPath(); ctx.arc(g.px + 16 + Math.cos(a) * 16, g.py + 16 + Math.sin(a) * 16, 5, 0, Math.PI * 2); ctx.fill(); }
             if (g.state === 'alert') { const bob = Math.abs(Math.sin(time * 8)) * 4; ctx.fillStyle = '#ff3b3b'; ctx.font = 'bold 20px Georgia, serif'; ctx.fillText('!', g.px + 12, g.py - 4 - bob); }
         });
         particles.forEach((p) => { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.col; ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3); }); ctx.globalAlpha = 1;
@@ -856,7 +984,7 @@ export async function startGame() {
         ctx.restore();
 
         const lvl = levels[levelIndex];
-        if (phase === 'title') overlay('Mini Castle Wolfenstein', ['Steal the war plans from the Keep and escape every room.', 'Stay out of the guards\' sight. Crates hide you, sprinting is loud.', 'Find a pistol if you must, but gunfire brings guards from other rooms.'], 'Press Space or tap to start', { castle: true });
+        if (phase === 'title') overlay('Mini Castle Wolfenstein', ['Steal the war plans from the Keep and escape every room.', 'Alerted guards shoot on sight: break their line of sight.', `Difficulty:  ${['easy', 'normal', 'hard'].map((d, i) => `${i + 1} ${d === difficulty ? '[' + DIFFICULTY[d].label + ']' : DIFFICULTY[d].label}`).join('   ')}`, ...(hasSave ? ['Press C to continue your saved campaign'] : [])], 'Press Space or tap to start a new campaign', { castle: true });
         else if (phase === 'paused') overlay('Paused', ['Press P or Space to resume']);
         else if (phase === 'map') { ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, VW, VH); drawCastle(ctx, VW, VH, true); ctx.fillStyle = '#ffe066'; ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('The castle — press M to return', VW / 2, VH - 8); ctx.textAlign = 'left'; }
         else if (phase === 'levelclear') overlay(`${lvl.name} cleared`, [`Score ${score}`, `${completed.size} of ${levels.length} rooms escaped`, ...(completed.size === levels.length && missingRequired().length ? [`Go back for the ${missingRequired()[0].obj.label.toLowerCase()}`] : [])], 'Press Space to continue');
@@ -867,7 +995,7 @@ export async function startGame() {
         drawCastle(cctx, 260, 190, false);
         timerEl.textContent = phase === 'title' ? '0.0s' : `${(elapsedMs() / 1000).toFixed(1)}s`;
         scoreEl.textContent = score;
-        livesEl.textContent = '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, MAX_LIVES - lives));
+        livesEl.textContent = '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, diff().lives - lives));
         const objEl = document.getElementById('objectives');
         if (objEl) {
             const rows = (lvl.objectives ?? []).map((o) => { const done = isDone(levelIndex, o.id); const failed = o.id === 'no_alarm' && levelAlarmed; return `<li class="${done ? 'done' : failed ? 'failed' : ''}">${done ? '✓' : failed ? '✗' : '○'} ${o.label}${o.required ? ' <em>(required)</em>' : ''}</li>`; });
@@ -883,10 +1011,10 @@ export async function startGame() {
     // Debug hook for automated checks: only when the page is opened with ?debug=1
     if (new URLSearchParams(location.search).has('debug')) {
         window.__woolfie = {
-            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
+            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), lives, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
             givePistol: () => { player.gun = true; player.ammo = GUN_AMMO; }, fire, raiseAlarm, markObjective,
             teleport: (x, y) => { player.x = x; player.y = y; player.px = x * TILE; player.py = y * TILE; lastTile = [x, y]; },
-            face: (d) => { player.dir = d; },
+            face: (d) => { player.dir = d; }, resumeCampaign, saveCampaign, setDifficulty: (d) => { difficulty = d; }, alertAll: alertAllGuards,
         };
     }
 

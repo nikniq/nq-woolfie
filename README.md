@@ -41,8 +41,10 @@ full view) shows how the rooms connect.
   war plans in the Keep are the one required objective; the campaign is won
   once you hold them and have escaped every room.
 - **Guards** see in a cone in front of them and pause to look around at
-  patrol corners. Once alerted they chase you, and a guard who keeps you in
-  sight for a few seconds raises the alarm.
+  patrol corners. Once alerted they chase you and, on normal and hard, shoot
+  when they have a clear line of sight. Officers are faster, see further and
+  fire sooner. Dogs hear sprinting from far away and run you down, but cannot
+  shoot. A guard who keeps you in sight for a few seconds raises the alarm.
 - **The alarm** (tripwires, gunshots, or a persistent chase) sends every
   guard in the room after you and pulls reinforcements from the rooms
   connected by portals and stairs. Those guards arrive through the matching
@@ -55,8 +57,13 @@ full view) shows how the rooms connect.
   across them, trapdoors that drop you into the room below, gas vents that
   reverse your controls, crumbling floor that becomes a pit behind you, and
   swinging blades patrolling corridors.
-- Three lives per campaign. Each treasure is 100 points, each room 250, and
-  objectives award 200 to 500 on top.
+- **Difficulty** is picked on the title screen with 1, 2 or 3: it sets your
+  lives (5, 3 or 2), guard speed and sight, whether guards shoot, and how many
+  reinforcements an alarm brings. Runs record it on the leaderboard.
+- **Your campaign is saved** in the browser whenever you clear a room, travel
+  or get caught. Press C on the title screen to continue.
+- Each treasure is 100 points, each room 250, and objectives award 200 to 500
+  on top.
 
 Controls:
 
@@ -90,8 +97,10 @@ blade paths must be straight lines across walkable tiles. Run
 
 ## Sounds
 
-Effects are synthesised in the browser. Drop your own clips into
-`public_html/sounds/` (see the README there) to replace any of them.
+Effects and the ambient music are synthesised in the browser; a heartbeat
+sounds when a guard is close. Drop your own clips into
+`public_html/sounds/` (see the README there) to replace any of them, including
+a looping `music` track.
 
 ## Deploying
 
