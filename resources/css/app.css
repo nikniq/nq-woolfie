@@ -87,3 +87,11 @@ a.button{display:inline-block;padding:8px 12px;background:linear-gradient(#3a3a4
 .legend summary{cursor:pointer;color:#9cf}
 .legend ul{list-style:none;padding:0;margin:8px 0}
 .legend li{margin:4px 0;color:#bbb}
+.leaderboard a,.player a{color:#9cf;text-decoration:none}
+.player table{border-collapse:collapse;margin-bottom:20px}
+.player th,.player td{text-align:left;padding:6px 10px;border-bottom:1px solid #222}
+.player h3{font-family:'Cinzel',Georgia,serif;color:#f2d06b;margin:18px 0 8px}
+.badges{list-style:none;padding:0;margin:0 0 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:4px}
+.badges li{padding:4px 6px;border:1px solid #222}
+.badges li.locked .badge{opacity:.35;filter:grayscale(1)}
+.badges li .muted{display:block;font-size:15px}

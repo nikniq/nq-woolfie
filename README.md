@@ -46,7 +46,8 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
   war plans are the one required objective.
 - **Achievements** are awarded per player name when a campaign ends (Ghost,
   Pacifist, Master Thief, Speedrunner, Chameleon and more) and shown in the
-  hall of fame on the leaderboard.
+  hall of fame on the leaderboard. Every player name has a profile page at
+  `/players/<name>` with their achievements, room bests and campaign history.
 - **Guards** see in a cone in front of them and pause to look around at
   patrol corners. A guard that hears something walks over to investigate,
   looks around, then returns to its patrol. Once a guard sees you it chases
@@ -55,6 +56,13 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
 - **Stones.** Press Q to throw a stone up to four tiles ahead; nearby guards
   go to look where it landed. You start with three and find one in each new
   room.
+- **Bodies.** Press E over a body you have shot to take the uniform, and E
+  again to carry it. Carrying is slow, you cannot fire, and any guard that
+  sees you raises the alarm. Drop a body on crates to hide it for good.
+- **Aim warning.** A guard lining up a shot draws a dashed red line to you,
+  which turns solid just before it fires. Break line of sight.
+- **Hints** appear once each, the first time you meet a mechanic. Add
+  `?hints=reset` to the game URL to see them again.
 - **Disguise.** Stand over a guard or officer you have shot and press E to
   take the uniform. Ordinary guards then only notice you within about a
   tile, officers from a little further, and dogs are not fooled at all. The

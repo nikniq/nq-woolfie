@@ -35,6 +35,7 @@ class Achievement extends Model
             'speedrunner' => ['title' => 'Speedrunner', 'icon' => '⏱', 'description' => 'Escape in under five minutes of room time.', 'test' => fn ($r) => $escaped($r) && $r->time_ms < 300000],
             'hardened' => ['title' => 'Hardened', 'icon' => '💀', 'description' => 'Escape on hard.', 'test' => fn ($r) => $escaped($r) && $r->difficulty === 'hard'],
             'chameleon' => ['title' => 'Chameleon', 'icon' => '🎭', 'description' => 'Walk out of the gate wearing a guard\'s uniform.', 'test' => fn ($r) => $escaped($r) && $r->disguised_at_end],
+            'undertaker' => ['title' => 'Undertaker', 'icon' => '⚰', 'description' => 'Hide three bodies in crates in one campaign.', 'test' => fn ($r) => $r->bodies_hidden >= 3],
             'distraction' => ['title' => 'Distraction Artist', 'icon' => '🪨', 'description' => 'Throw ten stones in one campaign.', 'test' => fn ($r) => $r->stones >= 10],
         ];
     }

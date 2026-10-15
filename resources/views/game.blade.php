@@ -21,7 +21,7 @@
         </div>
     </div>
     <div id="hud">
-        <div id="status">Arrows / WASD move, Shift sprints (noisy), F fires, Q throws a stone, E takes a uniform from a body. Crates hide you. P pauses, M map, R restarts. Gamepad works too.</div>
+        <div id="status">Arrows / WASD move, Shift sprints (noisy), F fires, Q throws a stone, E takes a uniform from a body or carries it. Crates hide you. P pauses, M map, R restarts. Gamepad works too.</div>
         <div id="controls">
             <div id="levelLabel">Level <span id="level">1</span> / {{ $levelCount }}</div>
             <div id="timer">0.0s</div>

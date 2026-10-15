@@ -19,7 +19,7 @@
             <tbody>
             @foreach ($hallOfFame as $player => $keys)
                 <tr>
-                    <td>{{ $player }}</td>
+                    <td><a href="{{ route('player', $player) }}">{{ $player }}</a></td>
                     <td>@foreach ($keys as $key)<span class="badge" title="{{ $catalogue[$key]['description'] ?? '' }}">{{ $catalogue[$key]['icon'] ?? '' }} {{ $catalogue[$key]['title'] ?? $key }}</span> @endforeach</td>
                 </tr>
             @endforeach
@@ -47,7 +47,7 @@
             @foreach ($campaigns as $c)
                 <tr>
                     <td>{{ $loop->iteration }}</td>
-                    <td>{{ $c->player_name }}</td>
+                    <td><a href="{{ route('player', $c->player_name) }}">{{ $c->player_name }}</a></td>
                     <td><span class="diff {{ $c->difficulty }}">{{ $c->difficulty }}</span></td>
                     <td>{{ $c->total_score }}</td>
                     <td>{{ number_format($c->total_time / 1000, 2) }}s</td>
@@ -72,7 +72,7 @@
                 @foreach ($runs as $run)
                     <tr>
                         <td>{{ $loop->iteration }}</td>
-                        <td>{{ $run->player_name }}</td>
+                        <td><a href="{{ route('player', $run->player_name) }}">{{ $run->player_name }}</a></td>
                         <td><span class="diff {{ $run->difficulty }}">{{ $run->difficulty }}</span></td>
                         <td>{{ $run->score }}</td>
                         <td>{{ number_format($run->time_ms / 1000, 2) }}s</td>

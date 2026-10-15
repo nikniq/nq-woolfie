@@ -51,4 +51,10 @@ class CampaignResultApiTest extends TestCase
         $this->postJson('/api/campaigns', ['campaign' => 'nope', 'outcome' => 'won'])
             ->assertUnprocessable()->assertJsonValidationErrors(['campaign', 'outcome', 'score']);
     }
+
+    public function test_hiding_three_bodies_earns_undertaker(): void
+    {
+        $this->postJson('/api/campaigns', $this->payload(['outcome' => 'failed', 'bodies_hidden' => 3, 'campaign' => '55555555-5555-4555-8555-555555555555']))
+            ->assertCreated()->assertJsonPath('earned.0.key', 'undertaker');
+    }
 }

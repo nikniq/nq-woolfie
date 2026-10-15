@@ -3,11 +3,13 @@
 use App\Http\Controllers\EditorController;
 use App\Http\Controllers\GameController;
 use App\Http\Controllers\LeaderboardController;
+use App\Http\Controllers\PlayerController;
 use App\Http\Middleware\EditorAuth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [GameController::class, 'index'])->name('game');
 Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
+Route::get('/players/{name}', [PlayerController::class, 'show'])->name('player');
 
 Route::prefix('editor')->name('editor.')->group(function () {
     Route::get('login', [EditorController::class, 'login'])->name('login');

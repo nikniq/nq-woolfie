@@ -12,7 +12,7 @@ class CampaignResult extends Model
 
     protected $fillable = [
         'campaign', 'player_name', 'difficulty', 'outcome', 'score', 'time_ms', 'kills', 'alarms', 'lives_lost',
-        'stones', 'rooms_cleared', 'rooms_total', 'all_gold', 'all_prisoners', 'disguised_at_end',
+        'stones', 'bodies_hidden', 'rooms_cleared', 'rooms_total', 'all_gold', 'all_prisoners', 'disguised_at_end',
     ];
 
     protected function casts(): array
