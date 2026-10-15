@@ -16,6 +16,9 @@
         <nav>
             <a href="{{ route('game') }}" @class(['active' => request()->routeIs('game')])>Play</a>
             <a href="{{ route('leaderboard') }}" @class(['active' => request()->routeIs('leaderboard')])>Leaderboard</a>
+            @if (config('game.editor_password') !== '')
+                <a href="{{ route('editor.index') }}" @class(['active' => request()->routeIs('editor.*')])>Editor</a>
+            @endif
         </nav>
     </header>
     <main>

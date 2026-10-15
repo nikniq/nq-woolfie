@@ -18,6 +18,7 @@ composer install
 npm install
 cp .env.example .env        # already done on a fresh checkout
 php artisan key:generate
+# optional: EDITOR_PASSWORD=... in .env enables the room editor at /editor
 touch database/database.sqlite
 php artisan migrate --seed
 npm run build               # or `npm run dev` while developing
@@ -75,7 +76,20 @@ Controls:
 
 ## Designing rooms
 
-Rooms live in `database/seeders/LevelSeeder.php` as ASCII art:
+### In the browser
+
+Set `EDITOR_PASSWORD` in `.env` and open `/editor`. The editor paints tile
+grids, places the player start, guards (with type, speed and patrol route),
+swinging blades and lettered portals, sets the room's castle position, and
+saves to the database. Every save runs the same validation as the seeder and
+reports problems inline. "Save & play" opens the game in that room. Rooms
+saved from the editor are flagged custom and survive reseeds; delete one to
+fall back to the seeded version. "Copy JSON" / "Paste JSON" move rooms
+between installs.
+
+### In the seeder
+
+The built-in rooms live in `database/seeders/LevelSeeder.php` as ASCII art:
 
 ```
 #  wall        .  floor       D  locked door   K  key   E  exit (stairs)
@@ -85,14 +99,13 @@ S  spike plate   T  tripwire   X  trapdoor   G  gas vent   C  crumbling floor
 W  war plans (required objective)   U  pistol   A  ammo box   R  prisoner cell
 ```
 
-Objectives are derived from the tiles when seeding, so a room with an `R`
-automatically gets a "free the prisoner" objective.
-
-Moving blades are listed in the room's `traps` array, and `castle` gives the
-room's column and row on the castle map. The seeder validates every room:
-the key must be reachable without passing a door, the exit must be locked
-behind one, treasure must be reachable, portals must pair up, and guard and
-blade paths must be straight lines across walkable tiles. Run
+Objectives are derived from the tiles, so a room with an `R` automatically
+gets a "free the prisoner" objective. Moving blades are listed in the room's
+`traps` array, and `castle` gives the room's column and row on the castle
+map. The rules in `app/Services/LevelValidator.php` apply to both the seeder
+and the editor: the key must be reachable without passing a door, the exit
+must be locked behind one, pickups must be reachable, portals must pair up,
+and guard and blade paths must be straight lines across walkable tiles. Run
 `php artisan db:seed` after editing.
 
 ## Sounds

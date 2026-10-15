@@ -52,3 +52,31 @@ button:hover{background:linear-gradient(#4a4a52,#30303a)}
 .diff.easy{color:#9fffa0}
 .diff.hard{color:#f66}
 #music{margin-left:8px}
+/* room editor */
+.editor-top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px}
+.editor-top label{display:flex;gap:6px;align-items:center}
+.editor-top input{width:70px;padding:4px;background:#0b0b0b;border:1px solid #333;color:#fff}
+.editor-top input#edName{width:180px}
+.editor-body{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.editor-palette{flex:0 0 250px}
+.editor-palette h3{margin:10px 0 6px;font-size:18px}
+.editor-palette .pal{display:flex;align-items:center;gap:8px;width:100%;margin:2px 0;padding:4px 8px;text-align:left;font-family:'VT323',monospace;font-size:17px;color:#ddd;background:#1a1a20;border:1px solid #333}
+.editor-palette .pal.sel{border-color:#ffe066;color:#ffe066}
+.editor-palette .sw{display:inline-block;width:16px;height:16px;border:1px solid #000}
+.editor-palette .row{display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding:4px;border:1px solid #2a2a30;margin:2px 0;font-size:15px}
+.editor-palette .row.sel{border-color:#ff4040}
+.editor-palette .row input{width:52px;padding:2px;background:#0b0b0b;border:1px solid #333;color:#fff}
+.editor-palette .row select{background:#0b0b0b;border:1px solid #333;color:#fff}
+.editor-palette .row .pts{flex:1 1 100%;color:#999;font-size:13px}
+.editor-palette .row button{margin:0;padding:2px 6px;font-size:14px;font-family:'VT323',monospace}
+.editor-stage{flex:1 1 600px;min-width:0}
+#edCanvas{width:100%;max-width:840px;height:auto;image-rendering:auto;border:4px solid #2a2a30;box-shadow:none;cursor:crosshair;touch-action:none}
+.editor-actions button{margin-right:6px}
+.errors{background:#2a0b0b;border:1px solid #702020;color:#ffb0b0;padding:8px;margin:8px 0}
+.error{color:#f66}
+button.danger{color:#f66;border-color:#702020}
+a.button{display:inline-block;padding:8px 12px;background:linear-gradient(#3a3a42,#26262c);border:1px solid #555;color:#f2d06b;font-family:'Cinzel',Georgia,serif;text-decoration:none}
+.editor-login form{max-width:320px}
+.editor-index table{border-collapse:collapse;min-width:560px}
+.editor-index th,.editor-index td{text-align:left;padding:6px 10px;border-bottom:1px solid #222}
+.editor-index a{color:#9cf}

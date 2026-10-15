@@ -433,11 +433,13 @@ export async function startGame() {
         message = 'Campaign resumed.';
         return true;
     }
+    // ?level=N starts a new campaign in that room (used by the editor's play-test link)
+    const startAt = (() => { const n = +new URLSearchParams(location.search).get('level'); const i = levels.findIndex((l) => l.number === n); return i >= 0 ? i : 0; })();
     function startCampaign() {
         clearSave();
         score = 0; lives = diff().lives; completed = new Set(); visited = new Set(); levelStates = new Map(); objectivesDone = new Map(); kills = 0; player.gun = false; player.ammo = 0;
         campaignId = (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`.slice(0, 36));
-        loadLevel(0);
+        loadLevel(startAt);
     }
 
     async function reportRun(outcome) {
@@ -1020,6 +1022,6 @@ export async function startGame() {
 
     let last = now();
     function loop(t) { const dt = Math.min(0.05, (t - last) / 1000); last = t; update(dt); draw(); requestAnimationFrame(loop); }
-    loadLevel(0); phase = 'title';
+    loadLevel(startAt); phase = 'title';
     requestAnimationFrame(loop);
 }

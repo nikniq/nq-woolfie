@@ -53,7 +53,7 @@ class Level extends Model
     /** Locked cell with a prisoner to free. */
     public const TILE_PRISONER = 17;
 
-    protected $fillable = ['number', 'name', 'map', 'player_start', 'guards', 'portals', 'traps', 'objectives', 'castle_x', 'castle_y'];
+    protected $fillable = ['number', 'name', 'map', 'player_start', 'guards', 'portals', 'traps', 'objectives', 'castle_x', 'castle_y', 'custom'];
 
     protected function casts(): array
     {
@@ -64,6 +64,7 @@ class Level extends Model
             'portals' => 'array',
             'traps' => 'array',
             'objectives' => 'array',
+            'custom' => 'boolean',
         ];
     }
 
