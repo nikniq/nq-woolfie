@@ -86,9 +86,9 @@ class GameRunApiTest extends TestCase
 
         $response = $this->get('/leaderboard')
             ->assertOk()
-            ->assertSeeInOrder(['Full castle escapes', 'Hero', (string) (300 * $levels->count())]);
+            ->assertSeeInOrder(['Fastest full-castle runs', 'Hero', (string) (300 * $levels->count())]);
 
-        $campaignTable = Str::before(Str::after($response->getContent(), 'Full castle escapes'), 'Level 1');
+        $campaignTable = Str::before(Str::after($response->getContent(), 'Fastest full-castle runs'), 'Level 1');
         $this->assertStringNotContainsString('Quitter', $campaignTable, 'partial campaigns must not appear on the full-castle board');
     }
 

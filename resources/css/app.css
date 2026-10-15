@@ -82,3 +82,8 @@ a.button{display:inline-block;padding:8px 12px;background:linear-gradient(#3a3a4
 .editor-index table{border-collapse:collapse;min-width:560px}
 .editor-index th,.editor-index td{text-align:left;padding:6px 10px;border-bottom:1px solid #222}
 .editor-index a{color:#9cf}
+.badge{display:inline-block;padding:1px 8px;margin:2px 4px 2px 0;border:1px solid #4a4a52;border-radius:12px;background:#1a1a20;color:#f2d06b;font-size:16px;white-space:nowrap}
+.legend{margin:8px 0 20px}
+.legend summary{cursor:pointer;color:#9cf}
+.legend ul{list-style:none;padding:0;margin:8px 0}
+.legend li{margin:4px 0;color:#bbb}

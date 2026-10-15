@@ -5,11 +5,37 @@
 @section('content')
 <section class="leaderboard">
     <p class="stats">
-        Escapes: <strong>{{ $stats['completed'] }}</strong> &middot;
+        Castle escapes: <strong>{{ $stats['escapes'] }}</strong> &middot;
+        Rooms cleared: <strong>{{ $stats['completed'] }}</strong> &middot;
         Caught: <strong>{{ $stats['caught'] }}</strong>
     </p>
 
-    <h2>Full castle escapes</h2>
+    <h2>Hall of fame</h2>
+    @if ($hallOfFame->isEmpty())
+        <p class="muted">No achievements yet. Escape the castle to earn the first.</p>
+    @else
+        <table class="fame">
+            <thead><tr><th>Player</th><th>Achievements</th></tr></thead>
+            <tbody>
+            @foreach ($hallOfFame as $player => $keys)
+                <tr>
+                    <td>{{ $player }}</td>
+                    <td>@foreach ($keys as $key)<span class="badge" title="{{ $catalogue[$key]['description'] ?? '' }}">{{ $catalogue[$key]['icon'] ?? '' }} {{ $catalogue[$key]['title'] ?? $key }}</span> @endforeach</td>
+                </tr>
+            @endforeach
+            </tbody>
+        </table>
+    @endif
+    <details class="legend">
+        <summary>All achievements</summary>
+        <ul>
+            @foreach ($catalogue as $key => $def)
+                <li><span class="badge">{{ $def['icon'] }} {{ $def['title'] }}</span> {{ $def['description'] }}</li>
+            @endforeach
+        </ul>
+    </details>
+
+    <h2>Fastest full-castle runs</h2>
     @if ($campaigns->isEmpty())
         <p class="muted">Nobody has escaped all {{ $levels->count() }} levels in one run yet.</p>
     @else

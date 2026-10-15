@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Achievement;
+use App\Models\CampaignResult;
 use App\Models\GameRun;
 use App\Models\Level;
 use Illuminate\View\View;
@@ -31,11 +33,22 @@ class LeaderboardController extends Controller
             ->limit(10)
             ->get();
 
+        $catalogue = Achievement::catalogue();
+        $hallOfFame = Achievement::query()
+            ->orderBy('earned_at')
+            ->get()
+            ->groupBy('player_name')
+            ->map(fn ($rows) => $rows->pluck('key')->all())
+            ->sortByDesc(fn ($keys) => count($keys))
+            ->take(20);
+        $escapes = CampaignResult::where('outcome', CampaignResult::OUTCOME_ESCAPED)->count();
+
         $stats = [
+            'escapes' => $escapes,
             'completed' => GameRun::where('outcome', GameRun::OUTCOME_COMPLETED)->count(),
             'caught' => GameRun::where('outcome', GameRun::OUTCOME_CAUGHT)->count(),
         ];
 
-        return view('leaderboard', compact('levels', 'bestRuns', 'campaigns', 'stats'));
+        return view('leaderboard', compact('levels', 'bestRuns', 'campaigns', 'stats', 'catalogue', 'hallOfFame'));
     }
 }

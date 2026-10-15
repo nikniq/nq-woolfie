@@ -6,6 +6,7 @@
 <div id="gameWrap"
      data-levels-url="{{ route('api.levels.index') }}"
      data-runs-url="{{ route('api.runs.store') }}"
+     data-campaigns-url="{{ route('api.campaigns.store') }}"
      data-sounds='@json($sounds)'>
     <div id="stage">
         <canvas id="game" width="640" height="320"></canvas>

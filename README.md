@@ -32,15 +32,21 @@ Then open http://127.0.0.1:8000.
 ## How to play
 
 The five maps are rooms of one castle. Your mission: steal the war plans
-from the Keep and escape every room. Each room has a key that unlocks its
-doors, gold to loot, and stairs (the exit) to the next room. Stone archways
-are portals into other rooms, and the castle map in the HUD (press M for the
-full view) shows how the rooms connect.
+from the Keep, then get back out through the gate you came in by. Each room
+has a key that unlocks its doors, gold to loot, and stairs down to the next
+room. Stairs work both ways: the tile you arrive on leads back up. Stone
+archways are portals into other rooms, and the castle map in the HUD (press
+M for the full view) shows how the rooms connect.
+
+Taking the plans puts the castle on **lockdown**: sirens, faster and
+sharper guards, and the gate in the Cellar lights up. Reach it to escape.
 
 - **Objectives.** Every room has side objectives: find all the gold and
   leave without raising the alarm. Some rooms hold a prisoner to free. The
-  war plans in the Keep are the one required objective; the campaign is won
-  once you hold them and have escaped every room.
+  war plans are the one required objective.
+- **Achievements** are awarded per player name when a campaign ends (Ghost,
+  Pacifist, Master Thief, Speedrunner, Chameleon and more) and shown in the
+  hall of fame on the leaderboard.
 - **Guards** see in a cone in front of them and pause to look around at
   patrol corners. A guard that hears something walks over to investigate,
   looks around, then returns to its patrol. Once a guard sees you it chases

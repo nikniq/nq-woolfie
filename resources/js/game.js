@@ -23,6 +23,7 @@ const GUARD_RANGE = 210, ENEMY_BULLET_SPEED = 7, GUARD_SPREAD = 0.09;
 const SAVE_KEY = 'woolfie.campaign';
 const STONE_RANGE = 4, STONE_NOISE = 180, MAX_STONES = 5, INVESTIGATE_LOOK = 2.2;
 const DISGUISE_SIGHT = { guard: 0.3, officer: 0.6, dog: 1 }; // sight multiplier while wearing a uniform
+const LOCKDOWN = { speed: 1.15, sight: 1.2, sirenEvery: 4 }; // the castle after the plans are taken
 const SPIKE_PERIOD = 2.6, SPIKE_WARN = 1.7, SPIKE_UP = 2.0; // seconds within each cycle
 const GAS_PERIOD = 4.5, GAS_ON = 1.6, GAS_RADIUS = TILE * 1.4, DIZZY_TIME = 3.5;
 const TREASURE_POINTS = 100;
@@ -56,6 +57,7 @@ export async function startGame() {
     const api = {
         levels: wrap.dataset.levelsUrl,
         runs: wrap.dataset.runsUrl,
+        campaigns: wrap.dataset.campaignsUrl,
         csrf: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
     };
 
@@ -89,10 +91,12 @@ export async function startGame() {
     let campaignId = null;
     let flash = 0, shake = 0, time = 0;
     let particles = [], popups = [];
-    let onPortal = false;
+    let onPortal = false; // standing on a portal / stairs / gate tile you arrived on: no trigger until you step off
     let VW = 640, VH = 320; // logical view size (map pixels)
     let deathAt = 0, doorsOpenedAt = -1, motes = [];
     let enemyBullets = [], stones = [];
+    let lockdown = false, lockdownSiren = 0, earned = [], resultPosted = false;
+    let stats = { alarms: 0, stones: 0, livesLost: 0, timeMs: 0 };
     let difficulty = 'normal'; try { if (DIFFICULTY[localStorage.getItem('woolfie.difficulty')]) difficulty = localStorage.getItem('woolfie.difficulty'); } catch {}
     const diff = () => DIFFICULTY[difficulty];
     let hasSave = false; try { hasSave = !!localStorage.getItem(SAVE_KEY); } catch {}
@@ -419,7 +423,7 @@ export async function startGame() {
         blades = st.blades.map((b) => ({ ...b })); bodies = st.bodies.map((b) => ({ ...b }));
         bullets = []; enemyBullets = []; stones = []; reinforcements = []; alarmUntil = -1; muzzle = 0;
         if (!resume) player.stones = Math.min(MAX_STONES, player.stones + 1);
-        onPortal = !!fromPortal;
+        onPortal = true;
         dizzy = 0; lastTile = [player.x, player.y]; trippedAt = -1;
         if (!resume) { runStart = now(); runReported = false; message = ''; }
         visited.add(i);
@@ -431,7 +435,7 @@ export async function startGame() {
     function saveCampaign() {
         try {
             saveState();
-            localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, campaignId, difficulty, score, lives, levelIndex, kills, completed: [...completed], visited: [...visited], objectivesDone: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), levelStates: [...levelStates.entries()], gun: player.gun, ammo: player.ammo, stones: player.stones, disguised: player.disguised, savedAt: Date.now() }));
+            localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, campaignId, difficulty, score, lives, levelIndex, kills, completed: [...completed], visited: [...visited], objectivesDone: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), levelStates: [...levelStates.entries()], gun: player.gun, ammo: player.ammo, stones: player.stones, disguised: player.disguised, lockdown, stats, savedAt: Date.now() }));
             hasSave = true;
         } catch { /* storage unavailable */ }
     }
@@ -442,7 +446,7 @@ export async function startGame() {
         ensureAudio();
         campaignId = d.campaignId; difficulty = DIFFICULTY[d.difficulty] ? d.difficulty : 'normal'; score = d.score; lives = d.lives; kills = d.kills ?? 0;
         completed = new Set(d.completed); visited = new Set(d.visited); objectivesDone = new Map(d.objectivesDone.map(([k, v]) => [k, new Set(v)]));
-        levelStates = new Map(d.levelStates); player.gun = d.gun; player.ammo = d.ammo; player.stones = d.stones ?? 3; player.disguised = !!d.disguised;
+        levelStates = new Map(d.levelStates); player.gun = d.gun; player.ammo = d.ammo; player.stones = d.stones ?? 3; player.disguised = !!d.disguised; lockdown = !!d.lockdown; stats = d.stats ?? { alarms: 0, stones: 0, livesLost: 0, timeMs: 0 };
         levelIndex = d.levelIndex;
         const target = completed.has(levelIndex) ? nextTarget() : levelIndex;
         loadLevel(target === -1 ? levelIndex : target, { resume: true });
@@ -453,7 +457,7 @@ export async function startGame() {
     const startAt = (() => { const n = +new URLSearchParams(location.search).get('level'); const i = levels.findIndex((l) => l.number === n); return i >= 0 ? i : 0; })();
     function startCampaign() {
         clearSave();
-        score = 0; lives = diff().lives; completed = new Set(); visited = new Set(); levelStates = new Map(); objectivesDone = new Map(); kills = 0; player.gun = false; player.ammo = 0; player.stones = 3; player.disguised = false;
+        score = 0; lives = diff().lives; completed = new Set(); visited = new Set(); levelStates = new Map(); objectivesDone = new Map(); kills = 0; player.gun = false; player.ammo = 0; player.stones = 3; player.disguised = false; lockdown = false; earned = []; resultPosted = false; stats = { alarms: 0, stones: 0, livesLost: 0, timeMs: 0 };
         campaignId = (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`.slice(0, 36));
         loadLevel(startAt);
     }
@@ -464,6 +468,7 @@ export async function startGame() {
         const payload = { level_id: levels[levelIndex].id, player_name: nameInput.value, outcome, time_ms: Math.round(elapsedMs()), score: levelScore, campaign: campaignId, difficulty };
         try {
             const res = await fetch(api.runs, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': api.csrf }, body: JSON.stringify(payload) });
+            stats.timeMs += payload.time_ms;
             if (!res.ok) return;
             const body = await res.json();
             if (outcome === 'completed') message += `\nTime ${(payload.time_ms / 1000).toFixed(2)}s` + (body.is_personal_best ? ' — fastest ever on this room!' : ` (record ${(body.best_time_ms / 1000).toFixed(2)}s)`);
@@ -478,10 +483,21 @@ export async function startGame() {
         doneSet(levelIndex).add(id); levelScore += obj.points; score += obj.points;
         if (!silent) { popup(`${obj.label} +${obj.points}`, player.px + 16, player.py - 16, '#9fffa0'); }
     }
-    function missingRequired() { const out = []; levels.forEach((l, i) => (l.objectives ?? []).forEach((o) => { if (o.required && !isDone(i, o.id)) out.push({ level: i, obj: o }); })); return out; }
+    function missingRequired() { const out = []; levels.forEach((l, i) => (l.objectives ?? []).forEach((o) => { if (o.required && !isDone(i, o.id)) out.push({ level: i, obj: o }); })); if (lockdown) out.push({ level: 0, obj: { id: 'gate', label: 'Escape through the castle gate', required: true } }); return out; }
+    async function postResult(outcome) {
+        if (resultPosted || !api.campaigns) return;
+        resultPosted = true;
+        const allGold = levels.every((l, i) => !(l.objectives ?? []).some((o) => o.id === 'all_gold') || isDone(i, 'all_gold'));
+        const allPrisoners = levels.every((l, i) => !(l.objectives ?? []).some((o) => o.id === 'prisoner') || isDone(i, 'prisoner'));
+        const payload = { campaign: campaignId, player_name: nameInput.value, difficulty, outcome, score: Math.max(0, score), time_ms: Math.round(stats.timeMs + (phase === 'won' ? elapsedMs() : 0)), kills, alarms: stats.alarms, lives_lost: stats.livesLost, stones: stats.stones, rooms_cleared: completed.size, rooms_total: levels.length, all_gold: allGold, all_prisoners: allPrisoners, disguised_at_end: player.disguised };
+        try {
+            const res = await fetch(api.campaigns, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': api.csrf }, body: JSON.stringify(payload) });
+            if (res.ok) { const body = await res.json(); earned = body.earned ?? []; if (earned.length) playSound('plans'); }
+        } catch { /* achievements are optional */ }
+    }
     function nextTarget() {
         for (let k = 1; k <= levels.length; k++) { const j = (levelIndex + k) % levels.length; if (!completed.has(j)) return j; }
-        const miss = missingRequired(); return miss.length ? miss[0].level : -1;
+        const miss = missingRequired(); return miss.length ? (miss[0].obj.id === 'gate' ? levelIndex : miss[0].level) : -1;
     }
     function completeLevel() {
         levelScore += LEVEL_BONUS; score += LEVEL_BONUS;
@@ -493,18 +509,17 @@ export async function startGame() {
         playSound('win'); spawnParticles(player.px + 16, player.py + 16, 30, '#6c9be0', 90);
         reportRun('completed');
         const miss = missingRequired();
-        if (nextTarget() === -1) { phase = 'won'; clearSave(); }
-        else { phase = 'levelclear'; saveCampaign(); if (completed.size === levels.length && miss.length) message += `\nStill needed: ${miss[0].obj.label} (${levels[miss[0].level].name})`; }
+        { phase = 'levelclear'; saveCampaign(); if (completed.size === levels.length && miss.length) message += `\nStill needed: ${miss[0].obj.label} (${levels[miss[0].level].name})`; }
     }
     function caught() { die('Caught by a guard!'); }
     function die(reason) {
         message = reason;
         player.alive = false; flash = 0.4; shake = 0.4; deathAt = time;
-        lives -= 1; score -= levelScore; // gold respawns with the room, so give it back
+        lives -= 1; stats.livesLost++; score -= levelScore; // gold respawns with the room, so give it back
         levelStates.delete(levelIndex);
         spawnParticles(player.px + 16, player.py + 16, 20, '#ff4040', 80);
         reportRun('caught');
-        if (lives <= 0) { phase = 'gameover'; playSound('gameover'); clearSave(); } else { phase = 'dead'; playSound('caught'); saveCampaign(); }
+        if (lives <= 0) { phase = 'gameover'; playSound('gameover'); clearSave(); postResult('failed'); } else { phase = 'dead'; playSound('caught'); saveCampaign(); }
     }
     function travel(portal) {
         saveState();
@@ -520,6 +535,21 @@ export async function startGame() {
         message = note;
         popup(levels[dest].name, player.px + 16, player.py - 6, '#9fd0ff');
     }
+    const exitOf = (i) => { const m = levelStates.get(i)?.map ?? levels[i].map; for (let y = 0; y < m.length; y++) for (let x = 0; x < m[0].length; x++) if (m[y][x] === EXIT) return [x, y]; return levels[i].player_start; };
+    const atEntrance = () => player.x === levels[levelIndex].player_start[0] && player.y === levels[levelIndex].player_start[1];
+    function goBackUpstairs() {
+        const dest = levelIndex - 1; if (dest < 0) return;
+        saveState(); playSound('portal');
+        const ex = exitOf(dest);
+        enterRoom(dest, { x: ex[0], y: ex[1] }, `Back up the stairs to ${levels[dest].name}`);
+        saveCampaign();
+    }
+    function escapeThroughGate() {
+        if (!lockdown || !isDone(levelByNumber.get(levels.find((l) => (l.objectives ?? []).some((o) => o.id === 'plans'))?.number ?? -1) ?? -1, 'plans')) { message = 'The gate is barred. Come back with the war plans.'; return; }
+        message = 'You slip out through the gate with the plans!';
+        player.alive = false; phase = 'won'; clearSave(); playSound('win'); spawnParticles(player.px + 16, player.py + 16, 40, '#ffe066', 100);
+        postResult('escaped');
+    }
     function fallThroughTrapdoor() {
         const cur = levels[levelIndex];
         let dest = levels.findIndex((l) => l.castle_x === cur.castle_x && l.castle_y === cur.castle_y + 1);
@@ -529,7 +559,7 @@ export async function startGame() {
         saveState(); playSound('fall'); shake = 0.5;
         const start = levels[dest].player_start;
         enterRoom(dest, { x: start[0], y: start[1] }, `Fell through a trapdoor into ${levels[dest].name}!`);
-        onPortal = false;
+        onPortal = true;
     }
     function alertAllGuards() {
         for (const g of guards) { g.state = 'alert'; g.wait = 0; g.lastSeen = { x: player.x, y: player.y, time: now() }; g.alertAt = g.alertAt ?? time; const gx = Math.floor((g.px + TILE / 2) / TILE), gy = Math.floor((g.py + TILE / 2) / TILE); const path = astar(gx, gy, player.x, player.y); if (path && path.length > 1) { g.path = path; g.pathIdx = 1; } }
@@ -540,7 +570,7 @@ export async function startGame() {
     function raiseAlarm(reason) {
         alertAllGuards();
         if (alarmUntil > time) { alarmUntil = time + ALARM_TIME; return; }
-        playSound('alarm'); message = reason; flash = 0.2; levelAlarmed = true;
+        playSound('alarm'); message = reason; flash = 0.2; levelAlarmed = true; stats.alarms++;
         alarmUntil = time + ALARM_TIME; sirenNext = time + 1.2;
         const entrances = [];
         for (const p of portals) entrances.push({ room: levelByNumber.get(p.to_level), at: [p.x, p.y] });
@@ -593,7 +623,7 @@ export async function startGame() {
     }
     function throwStone() {
         if (phase !== 'playing' || player.stones <= 0) { if (phase === 'playing') message = 'No stones left. You find one in each new room.'; return; }
-        player.stones--;
+        player.stones--; stats.stones++;
         const a = DIR_ANGLE[player.dir]; const dx = Math.round(Math.cos(a)), dy = Math.round(Math.sin(a));
         let tx = player.x, ty = player.y;
         for (let i = 0; i < STONE_RANGE; i++) { const nx = tx + dx, ny = ty + dy; const t = tileAt(nx, ny); if (t === WALL || (t === DOOR && !player.hasKey)) break; tx = nx; ty = ny; }
@@ -655,7 +685,7 @@ export async function startGame() {
     function advance() {
         ensureAudio();
         if (phase === 'title' || phase === 'won' || (phase === 'gameover' && time - deathAt > 0.7)) startCampaign();
-        else if (phase === 'levelclear') { const t = nextTarget(); loadLevel(t, { resume: completed.has(t) }); }
+        else if (phase === 'levelclear') { const t = nextTarget(); loadLevel(t === -1 ? levelIndex : t, { resume: t === -1 || t === levelIndex || completed.has(t) }); }
         else if (phase === 'dead') { if (time - deathAt > 0.7) loadLevel(levelIndex); }
         else if (phase === 'paused' || phase === 'map') togglePause();
     }
@@ -741,7 +771,7 @@ export async function startGame() {
         }
     }
     function moveGuardToward(g, tx, ty) {
-        const spd = g.spd * GUARD_TYPES[g.type ?? 'guard'].speed * diff().speed * (g.state === 'alert' ? 1.35 : g.state === 'suspicious' ? 1.15 : 1);
+        const spd = g.spd * GUARD_TYPES[g.type ?? 'guard'].speed * diff().speed * (lockdown ? LOCKDOWN.speed : 1) * (g.state === 'alert' ? 1.35 : g.state === 'suspicious' ? 1.15 : 1);
         const dxg = tx - g.px, dyg = ty - g.py, dist = Math.hypot(dxg, dyg);
         if (dist < 2) { g.px = tx; g.py = ty; return true; }
         g.px += (dxg / dist) * Math.min(spd, dist); g.py += (dyg / dist) * Math.min(spd, dist); g.dir = dirFromVec(dxg, dyg);
@@ -772,12 +802,14 @@ export async function startGame() {
         });
         if (phase !== 'playing') return;
         if (alarmUntil > time && time >= sirenNext) { playSound('siren'); sirenNext = time + 1.5; }
+        else if (lockdown && time >= lockdownSiren) { playSound('siren'); lockdownSiren = time + LOCKDOWN.sirenEvery; }
 
         let dx = 0, dy = 0;
         if (keysPressed['w'] || keysPressed['arrowup'] || keysPressed.gpup) dy = -1;
         if (keysPressed['s'] || keysPressed['arrowdown'] || keysPressed.gpdown) dy = 1;
         if (keysPressed['a'] || keysPressed['arrowleft'] || keysPressed.gpleft) dx = -1;
         if (keysPressed['d'] || keysPressed['arrowright'] || keysPressed.gpright) dx = 1;
+        if (lockdown && alarmUntil <= time) { ctx.fillStyle = `rgba(255,0,0,${0.03 + 0.03 * Math.abs(Math.sin(time * 2))})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); ctx.fillStyle = '#ff6060'; ctx.font = 'bold 14px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('LOCKDOWN — ESCAPE TO THE GATE', VW / 2, 18); ctx.textAlign = 'left'; }
         if (alarmUntil > time) { ctx.fillStyle = `rgba(255,0,0,${0.06 + 0.07 * Math.abs(Math.sin(time * 6))})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); ctx.fillStyle = '#ff4040'; ctx.font = 'bold 18px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(`ALARM  ${Math.ceil(alarmUntil - time)}`, VW / 2, 22); ctx.textAlign = 'left'; }
         if (dizzy > 0) { dizzy -= dt; dx = -dx; dy = -dy; }
         player.sprinting = !!(keysPressed['shift'] || keysPressed.gpsprint) && (dx || dy);
@@ -806,12 +838,20 @@ export async function startGame() {
         if (player.hidden && !wasHidden) { playSound('hide'); message = 'Hidden in the crates.'; }
         if (here === KEY) { player.hasKey = true; map[player.y][player.x] = FLOOR; message = 'Got the key! Doors are open.'; playSound('pickup'); playSound('door'); popup('Key!', player.px + 16, player.py - 4); spawnParticles(player.px + 16, player.py + 16, 14, '#ffd23a'); doorsOpenedAt = time; }
         else if (here === TREASURE) { map[player.y][player.x] = FLOOR; treasureFound++; levelScore += TREASURE_POINTS; score += TREASURE_POINTS; message = `Gold! (${treasureFound}/${treasureTotal})`; playSound('treasure'); popup(`+${TREASURE_POINTS}`, player.px + 16, player.py - 4); spawnParticles(player.px + 16, player.py + 16, 16, '#ffe066'); }
-        else if (here === EXIT) { completeLevel(); return; }
-        else if (here === PLANS) { map[player.y][player.x] = FLOOR; playSound('plans'); message = 'The war plans! Now get out of the castle.'; markObjective('plans'); spawnParticles(player.px + 16, player.py + 16, 24, '#fff3a8', 80); }
+        else if (here === EXIT) {
+            if (onPortal) { /* arrived on these stairs from the room below; step off first */ }
+            else if (completed.has(levelIndex) && levelIndex + 1 < levels.length) { // already cleared: just go down
+                saveState(); playSound('portal'); const dest = levelIndex + 1; const sp = levels[dest].player_start;
+                enterRoom(dest, { x: sp[0], y: sp[1] }, `Down the stairs to ${levels[dest].name}`); saveCampaign(); return;
+            } else { completeLevel(); return; }
+        }
+        else if (here === PLANS) { map[player.y][player.x] = FLOOR; playSound('plans'); message = 'The war plans! Sirens wail: the castle is on lockdown. Get back to the gate!'; markObjective('plans'); lockdown = true; lockdownSiren = time + 1; flash = 0.3; shake = 0.4; saveCampaign(); spawnParticles(player.px + 16, player.py + 16, 24, '#fff3a8', 80); }
         else if (here === GUN) { map[player.y][player.x] = FLOOR; player.gun = true; player.ammo += GUN_AMMO; playSound('pickup'); message = `A pistol with ${GUN_AMMO} rounds. F or Ctrl fires. Shots are loud.`; popup('Pistol!', player.px + 16, player.py - 4, '#dddddd'); }
         else if (here === AMMO) { map[player.y][player.x] = FLOOR; player.ammo += AMMO_BOX; playSound('pickup'); message = `+${AMMO_BOX} rounds.`; popup(`+${AMMO_BOX} ammo`, player.px + 16, player.py - 4, '#dddddd'); }
         else if (here === PRISONER) { map[player.y][player.x] = FLOOR; playSound('free'); message = 'You freed the prisoner. They slip away into the dark.'; markObjective('prisoner'); spawnParticles(player.px + 16, player.py + 16, 18, '#9fffa0', 60); }
-        if (here === PORTAL) { if (!onPortal) { const p = portals.find((q) => q.x === player.x && q.y === player.y); if (p) { travel(p); return; } } } else onPortal = false;
+        if (here === PORTAL) { if (!onPortal) { const p = portals.find((q) => q.x === player.x && q.y === player.y); if (p) { travel(p); return; } } }
+        else if (atEntrance()) { if (!onPortal) { if (levelIndex === 0) { onPortal = true; escapeThroughGate(); if (phase !== 'playing') return; } else { goBackUpstairs(); return; } } }
+        else if (here !== EXIT) onPortal = false;
 
         // ---- traps ----
         if (lastTile && (lastTile[0] !== player.x || lastTile[1] !== player.y)) {
@@ -837,7 +877,7 @@ export async function startGame() {
             const vx = pcx - (g.px + TILE / 2), vy = pcy - (g.py + TILE / 2), d = Math.hypot(vx, vy);
             const gt = GUARD_TYPES[g.type ?? 'guard'];
             const disguiseFactor = player.disguised && !alarmOn && g.state !== 'alert' ? DISGUISE_SIGHT[g.type ?? 'guard'] : 1;
-            const sight = VIEW_DIST * gt.sight * diff().sight * disguiseFactor;
+            const sight = VIEW_DIST * gt.sight * diff().sight * disguiseFactor * (lockdown ? LOCKDOWN.sight : 1);
             let canSee = false;
             if (d < sight && !player.hidden) {
                 let ang = Math.atan2(vy, vx) - DIR_ANGLE[g.dir]; ang = Math.atan2(Math.sin(ang), Math.cos(ang));
@@ -923,6 +963,17 @@ export async function startGame() {
             blit({ x: Math.floor(hash(x, y) * 4), y: 0 }, px, py); // floor under everything
             const dh = hash(x * 7 + 3, y * 5 + 1);
             if (dh > 0.9 && (t === FLOOR || t === SPIKES || t === TRIPWIRE)) blit({ x: fr.decals[Math.floor((dh - 0.9) * 40) % 4], y: 0 }, px, py);
+            if (x === levels[levelIndex].player_start[0] && y === levels[levelIndex].player_start[1] && t === FLOOR) {
+                if (levelIndex === 0) { // the castle gate: a portcullis
+                    ctx.fillStyle = '#3a3a42'; ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4); ctx.fillStyle = lockdown ? '#2a1a1a' : '#0a0a0e'; ctx.fillRect(px + 5, py + 5, TILE - 10, TILE - 8);
+                    ctx.fillStyle = '#8a8a96'; for (let i = 0; i < 4; i++) ctx.fillRect(px + 7 + i * 6, py + 5, 2, TILE - 8); for (let i = 0; i < 3; i++) ctx.fillRect(px + 5, py + 8 + i * 7, TILE - 10, 2);
+                    if (lockdown) { ctx.fillStyle = `rgba(255,220,80,${0.3 + 0.3 * Math.abs(Math.sin(time * 4))})`; ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); }
+                } else { // stairs back up to the previous room
+                    ctx.fillStyle = '#2a2a30'; ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+                    for (let i = 0; i < 5; i++) { ctx.fillStyle = i % 2 ? '#4a4a52' : '#5a5a62'; ctx.fillRect(px + 3 + i * 2, py + 26 - i * 5, TILE - 6 - i * 4, 5); ctx.fillStyle = '#7a7a86'; ctx.fillRect(px + 3 + i * 2, py + 26 - i * 5, TILE - 6 - i * 4, 1); }
+                    ctx.fillStyle = '#9fd0ff'; ctx.font = '10px VT323, monospace'; ctx.fillText('▲', px + 12, py + 11);
+                }
+            }
             if (t === DOOR) {
                 if (doorsOpenedAt < 0) blit({ x: fr.tiles[DOOR], y: 0 }, px, py);
                 else { const k = Math.min(1, (time - doorsOpenedAt) / 0.6); ctx.save(); ctx.beginPath(); ctx.rect(px, py, TILE, TILE); ctx.clip(); blit({ x: fr.tiles[DOOR], y: 0 }, px, py - k * TILE); ctx.restore(); blit({ x: fr.doorOpen, y: 0 }, px, py); }
@@ -1024,6 +1075,7 @@ export async function startGame() {
                 else if (t === WALL) col = '#5e5e68'; else if (t === DOOR) col = '#8a6230'; else if (t === KEY) col = '#ffd23a'; else if (t === EXIT) col = '#3a64a8'; else if (t === TREASURE) col = '#e8c33a'; else if (t === HIDE) col = '#6b4a24'; else if (t === PORTAL) col = '#a070ff'; else if (t === SPIKES || t === TRIPWIRE || t === GAS) col = '#8a3a3a'; else if (t === TRAPDOOR || t === PIT) col = '#0a0a0c'; else if (t === CRUMBLE) col = '#33333a'; else if (t === PLANS) col = '#fff3a8'; else if (t === PRISONER) col = '#9fffa0'; else if (t === GUN || t === AMMO) col = '#bbbbcc';
                 c.fillStyle = col; c.fillRect(x + tx * s, y + ty * s, Math.ceil(s), Math.ceil(s));
             }
+            if (i === 0) { c.fillStyle = lockdown ? '#ffe066' : '#8a8a96'; c.fillRect(x + l.player_start[0] * s - 1, y + l.player_start[1] * s - 1, Math.ceil(s) + 2, Math.ceil(s) + 2); }
             if (i === levelIndex && phase !== 'title') { c.fillStyle = '#3f6bb5'; c.fillRect(x + player.x * s, y + player.y * s, Math.ceil(s), Math.ceil(s)); for (const g of guards) { c.fillStyle = g.state === 'alert' ? '#ff4040' : '#c33'; c.fillRect(x + (g.px / TILE) * s, y + (g.py / TILE) * s, Math.ceil(s), Math.ceil(s)); } for (const b of blades) { c.fillStyle = '#c8c8d4'; c.fillRect(x + (b.px / TILE) * s, y + (b.py / TILE) * s, Math.ceil(s), Math.ceil(s)); } }
             c.strokeStyle = i === levelIndex ? '#ffe066' : completed.has(i) ? '#6c9be0' : '#333'; c.lineWidth = i === levelIndex ? 2 : 1; c.strokeRect(x - 1, y - 1, rw + 2, rh + 2);
             c.fillStyle = completed.has(i) ? '#6c9be0' : known ? '#ddd' : '#555'; c.font = `${big ? 'bold 14px' : '10px'} system-ui, sans-serif`; c.textAlign = 'center';
@@ -1080,13 +1132,13 @@ export async function startGame() {
         ctx.restore();
 
         const lvl = levels[levelIndex];
-        if (phase === 'title') overlay('Mini Castle Wolfenstein', ['Steal the war plans from the Keep and escape every room.', 'Guards investigate noises: throw stones (Q) to lure them away.', 'Take a fallen guard\'s uniform (E) to walk past the rest.', `Difficulty:  ${['easy', 'normal', 'hard'].map((d, i) => `${i + 1} ${d === difficulty ? '[' + DIFFICULTY[d].label + ']' : DIFFICULTY[d].label}`).join('   ')}`, ...(hasSave ? ['Press C to continue your saved campaign'] : [])], 'Press Space or tap to start a new campaign', { castle: true });
+        if (phase === 'title') overlay('Mini Castle Wolfenstein', ['Steal the war plans from the Keep, then escape back to the gate.', 'Guards investigate noises: throw stones (Q) to lure them away.', 'Take a fallen guard\'s uniform (E) to walk past the rest.', `Difficulty:  ${['easy', 'normal', 'hard'].map((d, i) => `${i + 1} ${d === difficulty ? '[' + DIFFICULTY[d].label + ']' : DIFFICULTY[d].label}`).join('   ')}`, ...(hasSave ? ['Press C to continue your saved campaign'] : [])], 'Press Space or tap to start a new campaign', { castle: true });
         else if (phase === 'paused') overlay('Paused', ['Press P or Space to resume']);
         else if (phase === 'map') { ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, VW, VH); drawCastle(ctx, VW, VH, true); ctx.fillStyle = '#ffe066'; ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('The castle — press M to return', VW / 2, VH - 8); ctx.textAlign = 'left'; }
         else if (phase === 'levelclear') overlay(`${lvl.name} cleared`, [`Score ${score}`, `${completed.size} of ${levels.length} rooms escaped`, ...(completed.size === levels.length && missingRequired().length ? [`Go back for the ${missingRequired()[0].obj.label.toLowerCase()}`] : [])], 'Press Space to continue');
         else if (phase === 'dead') { if (time - deathAt > 0.7) overlay(message.split('\n')[0].replace(/[!.]$/, '') || 'Caught!', [`${lives} ${lives === 1 ? 'life' : 'lives'} left`], 'Press Space to retry'); }
         else if (phase === 'gameover') { if (time - deathAt > 0.7) overlay('Game over', [`Final score ${score}`], 'Press Space to try again'); }
-        else if (phase === 'won') overlay('You escaped with the plans!', [`Final score ${score}`, `${kills} guard${kills === 1 ? '' : 's'} shot, ${[...objectivesDone.values()].reduce((n, st) => n + st.size, 0)} objectives completed`], 'Press Space to play again');
+        else if (phase === 'won') overlay('You escaped with the plans!', [`Final score ${score}  ·  ${kills} guard${kills === 1 ? '' : 's'} shot  ·  ${stats.alarms} alarm${stats.alarms === 1 ? '' : 's'}`, ...(earned.length ? ['New achievements: ' + earned.map((e) => `${e.icon} ${e.title}`).join('   ')] : ['See the leaderboard for your achievements.'])], 'Press Space to play again');
 
         drawCastle(cctx, 260, 190, false);
         timerEl.textContent = phase === 'title' ? '0.0s' : `${(elapsedMs() / 1000).toFixed(1)}s`;
@@ -1096,7 +1148,7 @@ export async function startGame() {
         if (objEl) {
             const rows = (lvl.objectives ?? []).map((o) => { const done = isDone(levelIndex, o.id); const failed = o.id === 'no_alarm' && levelAlarmed; return `<li class="${done ? 'done' : failed ? 'failed' : ''}">${done ? '✓' : failed ? '✗' : '○'} ${o.label}${o.required ? ' <em>(required)</em>' : ''}</li>`; });
             const miss = missingRequired();
-            const main = miss.length ? `○ ${miss[0].obj.label} in ${levels[miss[0].level].name}, then escape` : completed.size === levels.length ? '✓ Castle escaped' : `✓ Plans secured — escape every room (${completed.size}/${levels.length})`;
+            const main = miss.length ? `○ ${miss[0].obj.label}${miss[0].obj.id === 'gate' ? ` (${levels[0].name})` : ` in ${levels[miss[0].level].name}`}` : phase === 'won' ? '✓ Castle escaped' : '○ Steal the war plans';
             objEl.innerHTML = `<div class="main">${main}</div><ul>${rows.join('')}</ul>`;
         }
         const weaponEl = document.getElementById('weapon');
@@ -1107,10 +1159,10 @@ export async function startGame() {
     // Debug hook for automated checks: only when the page is opened with ?debug=1
     if (new URLSearchParams(location.search).has('debug')) {
         window.__woolfie = {
-            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
+            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
             givePistol: () => { player.gun = true; player.ammo = GUN_AMMO; }, fire, raiseAlarm, markObjective,
             teleport: (x, y) => { player.x = x; player.y = y; player.px = x * TILE; player.py = y * TILE; lastTile = [x, y]; },
-            face: (d) => { player.dir = d; }, resumeCampaign, saveCampaign, setDifficulty: (d) => { difficulty = d; }, alertAll: alertAllGuards, throwStone, takeUniform, addBody: (x, y) => bodies.push({ px: x * TILE, py: y * TILE, dir: 'down', type: 'guard', born: time - 1 }), killGuard: (i) => { const g = guards.splice(i, 1)[0]; bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time - 1 }); },
+            face: (d) => { player.dir = d; }, resumeCampaign, saveCampaign, setDifficulty: (d) => { difficulty = d; }, alertAll: alertAllGuards, throwStone, takeUniform, goBack: goBackUpstairs, pickPlans: () => { lockdown = true; markObjective('plans'); }, markPlans: () => doneSet(levels.findIndex((l) => (l.objectives ?? []).some((o) => o.id === 'plans'))).add('plans'), addBody: (x, y) => bodies.push({ px: x * TILE, py: y * TILE, dir: 'down', type: 'guard', born: time - 1 }), killGuard: (i) => { const g = guards.splice(i, 1)[0]; bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time - 1 }); },
         };
     }
 
