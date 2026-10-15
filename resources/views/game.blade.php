@@ -15,10 +15,12 @@
             <button type="button" data-dir="right" aria-label="Right">▶</button>
             <button type="button" data-dir="down" aria-label="Down">▼</button>
             <button type="button" data-action="fire" aria-label="Fire">●</button>
+            <button type="button" data-action="stone" aria-label="Throw stone">◌</button>
+            <button type="button" data-action="use" aria-label="Take uniform">E</button>
         </div>
     </div>
     <div id="hud">
-        <div id="status">Arrows / WASD move, Shift sprints (noisy), F or Ctrl fires. Stand on crates to hide. Key opens doors, gold is points. P pauses, M map, R restarts. Gamepad works too.</div>
+        <div id="status">Arrows / WASD move, Shift sprints (noisy), F fires, Q throws a stone, E takes a uniform from a body. Crates hide you. P pauses, M map, R restarts. Gamepad works too.</div>
         <div id="controls">
             <div id="levelLabel">Level <span id="level">1</span> / {{ $levelCount }}</div>
             <div id="timer">0.0s</div>

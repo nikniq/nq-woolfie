@@ -42,8 +42,17 @@ full view) shows how the rooms connect.
   war plans in the Keep are the one required objective; the campaign is won
   once you hold them and have escaped every room.
 - **Guards** see in a cone in front of them and pause to look around at
-  patrol corners. Once alerted they chase you and, on normal and hard, shoot
-  when they have a clear line of sight. Officers are faster, see further and
+  patrol corners. A guard that hears something walks over to investigate,
+  looks around, then returns to its patrol. Once a guard sees you it chases
+  and, on normal and hard, shoots when it has a clear line of sight. Guards
+  that find a body raise the alarm.
+- **Stones.** Press Q to throw a stone up to four tiles ahead; nearby guards
+  go to look where it landed. You start with three and find one in each new
+  room.
+- **Disguise.** Stand over a guard or officer you have shot and press E to
+  take the uniform. Ordinary guards then only notice you within about a
+  tile, officers from a little further, and dogs are not fooled at all. The
+  alarm or a gunshot blows your cover. Officers are faster, see further and
   fire sooner. Dogs hear sprinting from far away and run you down, but cannot
   shoot. A guard who keeps you in sight for a few seconds raises the alarm.
 - **The alarm** (tripwires, gunshots, or a persistent chase) sends every
@@ -70,6 +79,7 @@ Controls:
 
 - Move: WASD or arrow keys, the on-screen d-pad on touch devices, or a gamepad
 - Shift (or a gamepad shoulder button): sprint. F, Ctrl, gamepad B or the red touch button: fire
+- Q or gamepad Y: throw a stone. E or gamepad X: take a uniform
 - Space / Enter / tap / gamepad A: start, continue, resume
 - P or Esc: pause. M: castle map. R: restart the room
 - Type a name in the HUD to appear on the leaderboard
