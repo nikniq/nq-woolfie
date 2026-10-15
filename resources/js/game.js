@@ -809,8 +809,6 @@ export async function startGame() {
         if (keysPressed['s'] || keysPressed['arrowdown'] || keysPressed.gpdown) dy = 1;
         if (keysPressed['a'] || keysPressed['arrowleft'] || keysPressed.gpleft) dx = -1;
         if (keysPressed['d'] || keysPressed['arrowright'] || keysPressed.gpright) dx = 1;
-        if (lockdown && alarmUntil <= time) { ctx.fillStyle = `rgba(255,0,0,${0.03 + 0.03 * Math.abs(Math.sin(time * 2))})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); ctx.fillStyle = '#ff6060'; ctx.font = 'bold 14px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('LOCKDOWN — ESCAPE TO THE GATE', VW / 2, 18); ctx.textAlign = 'left'; }
-        if (alarmUntil > time) { ctx.fillStyle = `rgba(255,0,0,${0.06 + 0.07 * Math.abs(Math.sin(time * 6))})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); ctx.fillStyle = '#ff4040'; ctx.font = 'bold 18px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(`ALARM  ${Math.ceil(alarmUntil - time)}`, VW / 2, 22); ctx.textAlign = 'left'; }
         if (dizzy > 0) { dizzy -= dt; dx = -dx; dy = -dy; }
         player.sprinting = !!(keysPressed['shift'] || keysPressed.gpsprint) && (dx || dy);
         const speed = player.sprinting ? SPRINT_SPEED : WALK_SPEED;
@@ -1041,7 +1039,14 @@ export async function startGame() {
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(title, VW / 2 + 2, VH / 2 - 32);
         ctx.fillStyle = castle ? '#f2d06b' : '#fff'; ctx.fillText(title, VW / 2, VH / 2 - 34);
         ctx.font = '19px VT323, monospace'; ctx.fillStyle = '#e6e6e6';
-        lines.forEach((l, i) => ctx.fillText(l, VW / 2, VH / 2 + 4 + i * 22));
+        // wrap long lines to the room width
+        const wrapped = [];
+        for (const l of lines) {
+            const words = String(l).split(' '); let cur = '';
+            for (const w of words) { const t = cur ? `${cur} ${w}` : w; if (ctx.measureText(t).width > VW - 48 && cur) { wrapped.push(cur); cur = w; } else cur = t; }
+            wrapped.push(cur);
+        }
+        wrapped.forEach((l, i) => ctx.fillText(l, VW / 2, VH / 2 + 4 + i * 22));
         if (sub) { ctx.fillStyle = '#ffe066'; ctx.font = '21px VT323, monospace'; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(time * 3); ctx.fillText(sub, VW / 2, VH - 16); ctx.globalAlpha = 1; }
         ctx.textAlign = 'left';
     }
@@ -1127,6 +1132,8 @@ export async function startGame() {
         const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.45, VW / 2, VH / 2, VW * 0.72); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.55)'); ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
         popups.forEach((p) => { ctx.globalAlpha = Math.min(1, p.life); ctx.fillStyle = p.col; ctx.font = '18px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText(p.text, p.x, p.y); }); ctx.globalAlpha = 1; ctx.textAlign = 'left';
         if (player.sprinting) { ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.beginPath(); ctx.arc(player.px + 16, player.py + 16, SPRINT_NOISE * (0.6 + 0.4 * ((time * 2) % 1)), 0, Math.PI * 2); ctx.stroke(); }
+        if (lockdown && alarmUntil <= time) { ctx.fillStyle = `rgba(255,0,0,${0.03 + 0.03 * Math.abs(Math.sin(time * 2))})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); ctx.fillStyle = '#ff6060'; ctx.font = 'bold 14px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText('LOCKDOWN — ESCAPE TO THE GATE', VW / 2, 18); ctx.textAlign = 'left'; }
+        if (alarmUntil > time) { ctx.fillStyle = `rgba(255,0,0,${0.06 + 0.07 * Math.abs(Math.sin(time * 6))})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); ctx.fillStyle = '#ff4040'; ctx.font = 'bold 18px Cinzel, Georgia, serif'; ctx.textAlign = 'center'; ctx.fillText(`ALARM  ${Math.ceil(alarmUntil - time)}`, VW / 2, 22); ctx.textAlign = 'left'; }
         if (dizzy > 0) { ctx.fillStyle = `rgba(120,220,90,${0.08 + 0.08 * Math.sin(time * 7)})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); }
         if (flash > 0) { ctx.fillStyle = `rgba(255,0,0,${Math.min(0.5, flash)})`; ctx.fillRect(-20, -20, VW + 40, VH + 40); }
         ctx.restore();
@@ -1138,7 +1145,7 @@ export async function startGame() {
         else if (phase === 'levelclear') overlay(`${lvl.name} cleared`, [`Score ${score}`, `${completed.size} of ${levels.length} rooms escaped`, ...(completed.size === levels.length && missingRequired().length ? [`Go back for the ${missingRequired()[0].obj.label.toLowerCase()}`] : [])], 'Press Space to continue');
         else if (phase === 'dead') { if (time - deathAt > 0.7) overlay(message.split('\n')[0].replace(/[!.]$/, '') || 'Caught!', [`${lives} ${lives === 1 ? 'life' : 'lives'} left`], 'Press Space to retry'); }
         else if (phase === 'gameover') { if (time - deathAt > 0.7) overlay('Game over', [`Final score ${score}`], 'Press Space to try again'); }
-        else if (phase === 'won') overlay('You escaped with the plans!', [`Final score ${score}  ·  ${kills} guard${kills === 1 ? '' : 's'} shot  ·  ${stats.alarms} alarm${stats.alarms === 1 ? '' : 's'}`, ...(earned.length ? ['New achievements: ' + earned.map((e) => `${e.icon} ${e.title}`).join('   ')] : ['See the leaderboard for your achievements.'])], 'Press Space to play again');
+        else if (phase === 'won') overlay('You escaped with the plans!', [`Final score ${score}  ·  ${kills} guard${kills === 1 ? '' : 's'} shot  ·  ${stats.alarms} alarm${stats.alarms === 1 ? '' : 's'}`, ...(earned.length ? ['New achievements: ' + earned.map((e) => `${e.icon}\u00a0${e.title.replace(/ /g, '\u00a0')}`).join('  ·  ')] : ['See the leaderboard for your achievements.'])], 'Press Space to play again');
 
         drawCastle(cctx, 260, 190, false);
         timerEl.textContent = phase === 'title' ? '0.0s' : `${(elapsedMs() / 1000).toFixed(1)}s`;
