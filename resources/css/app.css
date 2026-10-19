@@ -50,6 +50,7 @@ button:hover{background:linear-gradient(#4a4a52,#30303a)}
 #touch [data-action=fire]{grid-column:3;grid-row:3;background:#5a2020}
 #touch [data-action=stone]{grid-column:1;grid-row:3}
 #touch [data-action=use]{grid-column:1;grid-row:1;font-family:'Cinzel',serif;font-size:16px}
+#touch [data-action=grenade]{grid-column:3;grid-row:1;background:#4a3a10}
 .diff{padding:0 6px;border-radius:3px;font-size:15px;text-transform:uppercase;background:#2a2a30;color:#bbb}
 .diff.easy{color:#9fffa0}
 .diff.hard{color:#f66}

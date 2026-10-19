@@ -53,6 +53,12 @@ class Level extends Model
     /** Locked cell with a prisoner to free. */
     public const TILE_PRISONER = 17;
 
+    /** Supply chest: takes a few seconds to open, holds ammo, stones, a vest or grenades. */
+    public const TILE_CHEST = 18;
+
+    /** Cracked wall: solid until a grenade blows it open. */
+    public const TILE_CRACKED = 19;
+
     protected $fillable = ['number', 'name', 'map', 'player_start', 'guards', 'portals', 'traps', 'objectives', 'castle_x', 'castle_y', 'custom'];
 
     protected function casts(): array

@@ -4,9 +4,9 @@ const TILES = [
     [0, 'Floor', '#24242a'], [1, 'Wall', '#5e5e68'], [2, 'Door', '#8a6230'], [3, 'Key', '#ffd23a'], [4, 'Exit', '#3a64a8'],
     [5, 'Gold', '#e8c33a'], [6, 'Crates (hide)', '#6b4a24'], [7, 'Portal', '#a070ff'], [8, 'Spikes', '#b8b8c4'], [9, 'Tripwire', '#8a8a96'],
     [10, 'Trapdoor', '#3a2a16'], [11, 'Gas vent', '#3c4a3c'], [12, 'Crumbling floor', '#33333a'], [14, 'War plans', '#fff3a8'],
-    [15, 'Pistol', '#bbbbcc'], [16, 'Ammo', '#4a5a3a'], [17, 'Prisoner', '#9fffa0'],
+    [15, 'Pistol', '#bbbbcc'], [16, 'Ammo', '#4a5a3a'], [17, 'Prisoner', '#9fffa0'], [18, 'Supply chest', '#8a6a30'], [19, 'Cracked wall', '#4a4a3a'],
 ];
-const LABEL = { 0: '', 1: '', 2: 'D', 3: 'K', 4: 'E', 5: '$', 6: 'H', 7: '', 8: 'S', 9: 'T', 10: 'X', 11: 'G', 12: 'C', 14: 'W', 15: 'U', 16: 'A', 17: 'R' };
+const LABEL = { 0: '', 1: '', 2: 'D', 3: 'K', 4: 'E', 5: '$', 6: 'H', 7: '', 8: 'S', 9: 'T', 10: 'X', 11: 'G', 12: 'C', 14: 'W', 15: 'U', 16: 'A', 17: 'R', 18: 'B', 19: 'Z' };
 const COLOR = Object.fromEntries(TILES.map(([id, , c]) => [id, c]));
 const CELL = 28;
 
@@ -129,7 +129,7 @@ export function startEditor() {
         if (right) { paint(x, y, 0); return; }
         if (tool.kind === 'tile') paint(x, y, tool.tile);
         else if (tool.kind === 'erase') paint(x, y, 0);
-        else if (tool.kind === 'start') { if (map[y][x] !== 1) start = [x, y]; }
+        else if (tool.kind === 'start') { if (map[y][x] !== 1 && map[y][x] !== 19) start = [x, y]; }
         else if (tool.kind === 'guard' && selectedGuard >= 0) guards[selectedGuard].patrol.push([x, y]);
         else if (tool.kind === 'blade' && selectedBlade >= 0) { if (bladeEnd === 0) { blades[selectedBlade].from = [x, y]; bladeEnd = 1; } else { blades[selectedBlade].to = [x, y]; bladeEnd = 0; } }
         refresh();

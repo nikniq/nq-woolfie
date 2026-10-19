@@ -20,6 +20,7 @@ class StoreCampaignResultRequest extends FormRequest
             'campaign' => ['required', 'uuid'],
             'player_name' => ['nullable', 'string', 'max:24'],
             'difficulty' => ['nullable', Rule::in(GameRun::DIFFICULTIES)],
+            'daily' => ['nullable', 'date_format:Y-m-d'],
             'outcome' => ['required', Rule::in([CampaignResult::OUTCOME_ESCAPED, CampaignResult::OUTCOME_FAILED])],
             'score' => ['required', 'integer', 'min:0', 'max:1000000'],
             'time_ms' => ['required', 'integer', 'min:0', 'max:86400000'],

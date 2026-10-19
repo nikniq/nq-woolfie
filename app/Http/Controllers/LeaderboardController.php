@@ -6,12 +6,16 @@ use App\Models\Achievement;
 use App\Models\CampaignResult;
 use App\Models\GameRun;
 use App\Models\Level;
+use App\Services\DailyChallenge;
 use Illuminate\View\View;
 
 class LeaderboardController extends Controller
 {
-    public function index(): View
+    public function index(DailyChallenge $daily): View
     {
+        $challenge = $daily->forDate();
+        $dailyBoard = CampaignResult::where('daily', $challenge['date'])
+            ->orderByRaw("CASE WHEN outcome = 'escaped' THEN 0 ELSE 1 END")->orderByDesc('score')->orderBy('time_ms')->limit(10)->get();
         $levels = Level::orderBy('number')->get();
 
         $bestRuns = GameRun::query()
@@ -49,6 +53,6 @@ class LeaderboardController extends Controller
             'caught' => GameRun::where('outcome', GameRun::OUTCOME_CAUGHT)->count(),
         ];
 
-        return view('leaderboard', compact('levels', 'bestRuns', 'campaigns', 'stats', 'catalogue', 'hallOfFame'));
+        return view('leaderboard', compact('levels', 'bestRuns', 'campaigns', 'stats', 'catalogue', 'hallOfFame', 'challenge', 'dailyBoard'));
     }
 }

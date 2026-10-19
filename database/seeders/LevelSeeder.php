@@ -19,6 +19,7 @@ class LevelSeeder extends Seeder
      *              C crumbling floor (becomes a pit once you step off)
      *              W war plans (required to win)   U pistol   A ammo box
      *              R prisoner cell (free them for a bonus)
+     *              B supply chest (slow to open)   Z cracked wall (grenades open it)
      *
      * Objectives are derived from the tiles: every room has "find all gold"
      * and "no alarm"; W adds a required "steal the war plans", R adds
@@ -55,6 +56,8 @@ class LevelSeeder extends Seeder
         'U' => Level::TILE_GUN,
         'A' => Level::TILE_AMMO,
         'R' => Level::TILE_PRISONER,
+        'B' => Level::TILE_CHEST,
+        'Z' => Level::TILE_CRACKED,
     ];
 
     public function run(): void
@@ -73,7 +76,7 @@ class LevelSeeder extends Seeder
                     '#..S.#...#...#...#.#',
                     '####.###.###.###.#.#',
                     '#$.#...#$..#.$.#.D.#',
-                    '#....#...#...#...#E#',
+                    '#B...#...#...#...ZE#',
                     '####################',
                 ],
                 'guards' => [
@@ -94,9 +97,9 @@ class LevelSeeder extends Seeder
                     '#.##.##T####.#.###.#',
                     '#.#..$#.#..#U..#..a#',
                     '#.#.###.#.##.###.#.#',
-                    '#.#.....#.G..H...#$#',
+                    '#.#.....#.G..H...Z$#',
                     '#.#####.#######.##D#',
-                    '#.....$.......#.#..#',
+                    '#.....$...B...#.#..#',
                     '#.###########.#K#.E#',
                     '####################',
                 ],
@@ -118,7 +121,7 @@ class LevelSeeder extends Seeder
                     '#.###.#.##.#...#.#.#',
                     '#...#.#..#.#####.#.#',
                     '###.#.##C#.#...#A#.#',
-                    '#$..#....#.#.#######',
+                    '#$.B#....#.#.###Z###',
                     '#b#######H...DE$...#',
                     '####################',
                 ],
@@ -142,7 +145,7 @@ class LevelSeeder extends Seeder
                     '#.##.###.##.#.######',
                     '#..#.......#.S.H..a#',
                     '##A#.#####.###.###.#',
-                    '#$...#..K$.X.#...#R#',
+                    '#$.B.#..K$.X.#...#R#',
                     '####################',
                 ],
                 'guards' => [
@@ -164,10 +167,10 @@ class LevelSeeder extends Seeder
                     '####################',
                     '#P.H.....#$....#..K#',
                     '#.###T##.#.###.#.#.#',
-                    '#.#...#..#...#...#W#',
+                    '#.#...#.B#...#...#W#',
                     '#..b#.#.###.#####.S#',
                     '#.###.#..G..#..$...#',
-                    '#.$.H...#...#.######',
+                    '#.$.H...#...#.#Z####',
                     '#.#####.#.###.#..$E#',
                     '#.......#.....D..H.#',
                     '####################',

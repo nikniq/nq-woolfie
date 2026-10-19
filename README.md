@@ -59,6 +59,14 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
 - **Bodies.** Press E over a body you have shot to take the uniform, and E
   again to carry it. Carrying is slow, you cannot fire, and any guard that
   sees you raises the alarm. Drop a body on crates to hide it for good.
+- **Supply chests** take a few seconds to open while you stand still and
+  exposed. They hold grenades, a bulletproof vest that stops one shot, ammo
+  or stones.
+- **Grenades** (G) kill everything near the blast, blow cracked walls open
+  for shortcuts past locked doors, and of course raise the alarm.
+- **Daily challenge.** Press D on the title screen for today's run: two
+  modifiers fixed for the day (no pistol, extra guards, fog, one life and
+  so on) and a separate board on the leaderboard page.
 - **Aim warning.** A guard lining up a shot draws a dashed red line to you,
   which turns solid just before it fires. Break line of sight.
 - **Hints** appear once each, the first time you meet a mechanic. Add
@@ -93,7 +101,7 @@ Controls:
 
 - Move: WASD or arrow keys, the on-screen d-pad on touch devices, or a gamepad
 - Shift (or a gamepad shoulder button): sprint. F, Ctrl, gamepad B or the red touch button: fire
-- Q or gamepad Y: throw a stone. E or gamepad X: take a uniform
+- Q or gamepad Y: throw a stone. G or gamepad LB: throw a grenade. E or gamepad X: take a uniform / carry a body
 - Space / Enter / tap / gamepad A: start, continue, resume
 - P or Esc: pause. M: castle map. R: restart the room
 - Type a name in the HUD to appear on the leaderboard
@@ -121,6 +129,7 @@ $  treasure    H  hiding spot (crates)         P  player start
 a-z portal: the same letter in two rooms links them both ways
 S  spike plate   T  tripwire   X  trapdoor   G  gas vent   C  crumbling floor
 W  war plans (required objective)   U  pistol   A  ammo box   R  prisoner cell
+B  supply chest   Z  cracked wall (solid until a grenade opens it)
 ```
 
 Objectives are derived from the tiles, so a room with an `R` automatically

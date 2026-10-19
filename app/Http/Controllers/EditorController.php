@@ -104,7 +104,7 @@ class EditorController extends Controller
             'name' => ['required', 'string', 'max:40'],
             'map' => ['required', 'array', 'min:3', 'max:30'],
             'map.*' => ['required', 'array', 'min:3', 'max:40'],
-            'map.*.*' => ['required', 'integer', 'min:0', 'max:17'],
+            'map.*.*' => ['required', 'integer', 'min:0', 'max:19'],
             'player_start' => ['required', 'array', 'size:2'],
             'player_start.*' => ['integer', 'min:0'],
             'guards' => ['present', 'array', 'max:12'],

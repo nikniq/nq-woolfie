@@ -11,7 +11,7 @@ class CampaignResult extends Model
     public const OUTCOME_FAILED = 'failed';
 
     protected $fillable = [
-        'campaign', 'player_name', 'difficulty', 'outcome', 'score', 'time_ms', 'kills', 'alarms', 'lives_lost',
+        'campaign', 'player_name', 'difficulty', 'daily', 'outcome', 'score', 'time_ms', 'kills', 'alarms', 'lives_lost',
         'stones', 'bodies_hidden', 'rooms_cleared', 'rooms_total', 'all_gold', 'all_prisoners', 'disguised_at_end',
     ];
 

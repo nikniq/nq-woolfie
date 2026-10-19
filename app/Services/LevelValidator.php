@@ -12,7 +12,7 @@ use App\Models\Level;
  */
 class LevelValidator
 {
-    public const PICKUPS = [Level::TILE_TREASURE, Level::TILE_PLANS, Level::TILE_PRISONER, Level::TILE_GUN, Level::TILE_AMMO];
+    public const PICKUPS = [Level::TILE_TREASURE, Level::TILE_PLANS, Level::TILE_PRISONER, Level::TILE_GUN, Level::TILE_AMMO, Level::TILE_CHEST];
 
     /**
      * @param  int[][]  $map
@@ -33,7 +33,7 @@ class LevelValidator
             }
         }
         [$sx, $sy] = $start + [0, 0];
-        if (($map[$sy][$sx] ?? Level::TILE_WALL) === Level::TILE_WALL) {
+        if (in_array($map[$sy][$sx] ?? Level::TILE_WALL, [Level::TILE_WALL, Level::TILE_CRACKED], true)) {
             $problems[] = "$label: player start ($sx,$sy) is inside a wall";
         }
 
@@ -139,7 +139,7 @@ class LevelValidator
                 $cx = $x + ($steps ? intdiv(($nx - $x) * $st, $steps) : 0);
                 $cy = $y + ($steps ? intdiv(($ny - $y) * $st, $steps) : 0);
                 $t = $map[$cy][$cx] ?? Level::TILE_WALL;
-                if ($t === Level::TILE_WALL || $t === Level::TILE_DOOR || $t === Level::TILE_TRAPDOOR) {
+                if ($t === Level::TILE_WALL || $t === Level::TILE_CRACKED || $t === Level::TILE_DOOR || $t === Level::TILE_TRAPDOOR) {
                     $problems[] = "$label crosses a wall, door or trapdoor at ($cx,$cy)";
                     break;
                 }
@@ -173,7 +173,7 @@ class LevelValidator
                 $nx = $x + $dx;
                 $ny = $y + $dy;
                 $t = $map[$ny][$nx] ?? Level::TILE_WALL;
-                if ($t === Level::TILE_WALL || $t === Level::TILE_TRAPDOOR || ($t === Level::TILE_DOOR && ! $openDoors) || isset($seen["$nx,$ny"])) {
+                if ($t === Level::TILE_WALL || $t === Level::TILE_CRACKED || $t === Level::TILE_TRAPDOOR || ($t === Level::TILE_DOOR && ! $openDoors) || isset($seen["$nx,$ny"])) {
                     continue;
                 }
                 $seen["$nx,$ny"] = true;

@@ -7,6 +7,7 @@
      data-levels-url="{{ route('api.levels.index') }}"
      data-runs-url="{{ route('api.runs.store') }}"
      data-campaigns-url="{{ route('api.campaigns.store') }}"
+     data-daily-url="{{ route('api.daily.show') }}"
      data-sounds='@json($sounds)'>
     <div id="stage">
         <canvas id="game" width="640" height="320"></canvas>
@@ -18,10 +19,11 @@
             <button type="button" data-action="fire" aria-label="Fire">●</button>
             <button type="button" data-action="stone" aria-label="Throw stone">◌</button>
             <button type="button" data-action="use" aria-label="Take uniform">E</button>
+            <button type="button" data-action="grenade" aria-label="Throw grenade">✸</button>
         </div>
     </div>
     <div id="hud">
-        <div id="status">Arrows / WASD move, Shift sprints (noisy), F fires, Q throws a stone, E takes a uniform from a body or carries it. Crates hide you. P pauses, M map, R restarts. Gamepad works too.</div>
+        <div id="status">Arrows / WASD move, Shift sprints (noisy), F fires, Q throws a stone, G a grenade, E takes a uniform from a body or carries it. Crates hide you. P pauses, M map, R restarts. Gamepad works too.</div>
         <div id="controls">
             <div id="levelLabel">Level <span id="level">1</span> / {{ $levelCount }}</div>
             <div id="timer">0.0s</div>

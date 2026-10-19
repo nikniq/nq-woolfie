@@ -10,6 +10,21 @@
         Caught: <strong>{{ $stats['caught'] }}</strong>
     </p>
 
+    <h2>Today's challenge <span class="muted">{{ $challenge['date'] }}</span></h2>
+    <p>{{ $challenge['title'] }}: @foreach ($challenge['modifiers'] as $m)<span class="badge" title="{{ $m['description'] }}">{{ $m['label'] }}</span> @endforeach <span class="muted">Press D on the title screen to play it.</span></p>
+    @if ($dailyBoard->isEmpty())
+        <p class="muted">No attempts yet today.</p>
+    @else
+        <table>
+            <thead><tr><th>#</th><th>Player</th><th>Outcome</th><th>Score</th><th>Time</th></tr></thead>
+            <tbody>
+            @foreach ($dailyBoard as $r)
+                <tr><td>{{ $loop->iteration }}</td><td><a href="{{ route('player', $r->player_name) }}">{{ $r->player_name }}</a></td><td>{{ $r->outcome === 'escaped' ? '🏰 Escaped' : '💀 Failed' }}</td><td>{{ $r->score }}</td><td>{{ number_format($r->time_ms / 1000, 1) }}s</td></tr>
+            @endforeach
+            </tbody>
+        </table>
+    @endif
+
     <h2>Hall of fame</h2>
     @if ($hallOfFame->isEmpty())
         <p class="muted">No achievements yet. Escape the castle to earn the first.</p>

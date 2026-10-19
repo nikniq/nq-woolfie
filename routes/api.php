@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\CampaignResultController;
+use App\Http\Controllers\Api\DailyController;
 use App\Http\Controllers\Api\GameRunController;
 use App\Http\Controllers\Api\LevelController;
 use Illuminate\Support\Facades\Route;
@@ -13,3 +14,4 @@ Route::post('/runs', [GameRunController::class, 'store'])
 Route::post('/campaigns', [CampaignResultController::class, 'store'])
     ->middleware('throttle:30,1')
     ->name('api.campaigns.store');
+Route::get('/daily', [DailyController::class, 'show'])->name('api.daily.show');
