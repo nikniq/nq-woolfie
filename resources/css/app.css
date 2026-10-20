@@ -11,6 +11,7 @@ form.inline{display:inline}
 button.link{margin:0;padding:0;background:none;border:0;color:#9cf;font-family:'VT323',monospace;font-size:19px;cursor:pointer}
 .flash{background:#1a2a1a;border:1px solid #2f5a2f;color:#9fffa0;padding:8px;margin:0 0 12px}
 .auth-form{max-width:360px}
+.auth-form a{color:#9cf}
 .auth-form .check{display:block;margin:8px 0}
 .small{font-size:14px}
 .site-header h1{margin:0;color:#f2d06b;text-shadow:0 2px 0 #000,0 0 18px rgba(242,208,107,.25)}
