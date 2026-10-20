@@ -11,7 +11,12 @@ class GameRunController extends Controller
 {
     public function store(StoreGameRunRequest $request): JsonResponse
     {
-        $run = GameRun::create($request->validated());
+        $data = $request->validated();
+        if ($user = $request->user()) {
+            $data['user_id'] = $user->id;
+            $data['player_name'] = $user->name;
+        }
+        $run = GameRun::create($data);
 
         $best = GameRun::query()
             ->where('level_id', $run->level_id)

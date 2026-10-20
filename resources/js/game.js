@@ -81,9 +81,19 @@ export async function startGame() {
         levels: wrap.dataset.levelsUrl,
         runs: wrap.dataset.runsUrl,
         campaigns: wrap.dataset.campaignsUrl,
+        save: wrap.dataset.saveUrl || null,
+        user: wrap.dataset.userName || null,
         csrf: document.querySelector('meta[name="csrf-token"]')?.content ?? '',
     };
 
+    let hasSave = false;
+    let pushTimer = null;
+    const serverHeaders = () => ({ 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': api.csrf });
+    function pushSave(state) {
+        if (!api.save) return;
+        clearTimeout(pushTimer);
+        pushTimer = setTimeout(() => { fetch(api.save, { method: 'PUT', headers: serverHeaders(), body: JSON.stringify({ state }) }).catch(() => {}); }, 600);
+    }
     let levels = [];
     try {
         const res = await fetch(api.levels, { headers: { Accept: 'application/json' } });
@@ -93,11 +103,23 @@ export async function startGame() {
         info.textContent = `Could not load levels: ${err.message}\nRun: php artisan migrate --seed`;
         return;
     }
+    if (api.save) {
+        try {
+            const res = await fetch(api.save, { headers: { Accept: 'application/json' } });
+            if (res.ok) {
+                const remote = (await res.json()).data;
+                let local = null; try { local = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch {}
+                if (remote && (!local || (remote.savedAt ?? 0) > (local.savedAt ?? 0))) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(remote)); } catch {} }
+                else if (!remote && local) { pushSave(local); }
+            }
+        } catch { /* offline: the local save still works */ }
+    }
     if (wrap.dataset.dailyUrl) fetch(wrap.dataset.dailyUrl, { headers: { Accept: 'application/json' } }).then((r) => (r.ok ? r.json() : null)).then((b) => { daily = b?.data ?? null; }).catch(() => {});
     if (!levels.length) { info.textContent = 'No levels in the database.\nRun: php artisan db:seed'; return; }
     const levelByNumber = new Map(levels.map((l, i) => [l.number, i]));
+    try { hasSave = !!localStorage.getItem(SAVE_KEY); } catch {}
 
-    try { nameInput.value = localStorage.getItem('woolfie.name') ?? ''; } catch {}
+    if (api.user) nameInput.value = api.user; else { try { nameInput.value = localStorage.getItem('woolfie.name') ?? ''; } catch {} }
     nameInput.addEventListener('change', () => { try { localStorage.setItem('woolfie.name', nameInput.value); } catch {} });
 
     // ---- state ---------------------------------------------------------
@@ -128,7 +150,6 @@ export async function startGame() {
     let stats = { alarms: 0, stones: 0, livesLost: 0, timeMs: 0, bodiesHidden: 0 };
     let difficulty = 'normal'; try { if (DIFFICULTY[localStorage.getItem('woolfie.difficulty')]) difficulty = localStorage.getItem('woolfie.difficulty'); } catch {}
     const diff = () => DIFFICULTY[difficulty];
-    let hasSave = false; try { hasSave = !!localStorage.getItem(SAVE_KEY); } catch {}
     let blades = [], bullets = [], bodies = [], reinforcements = [];
     let objectivesDone = new Map(); // levelIndex -> Set(objective ids)
     let levelAlarmed = false, alarmUntil = -1, sirenNext = 0, kills = 0, muzzle = 0;
@@ -476,11 +497,13 @@ export async function startGame() {
     function saveCampaign() {
         try {
             saveState();
-            localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, campaignId, difficulty, score, lives, levelIndex, kills, completed: [...completed], visited: [...visited], objectivesDone: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), levelStates: [...levelStates.entries()], gun: player.gun, ammo: player.ammo, stones: player.stones, disguised: player.disguised, lockdown, stats, grenades: player.grenades, vest: player.vest, dailyDate, mods: [...mods], savedAt: Date.now() }));
+            const snapshot = { v: 1, campaignId, difficulty, score, lives, levelIndex, kills, completed: [...completed], visited: [...visited], objectivesDone: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), levelStates: [...levelStates.entries()], gun: player.gun, ammo: player.ammo, stones: player.stones, disguised: player.disguised, lockdown, stats, grenades: player.grenades, vest: player.vest, dailyDate, mods: [...mods], savedAt: Date.now() };
+            localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot));
             hasSave = true;
+            pushSave(snapshot);
         } catch { /* storage unavailable */ }
     }
-    function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch {} hasSave = false; }
+    function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch {} hasSave = false; if (api.save) { clearTimeout(pushTimer); fetch(api.save, { method: 'DELETE', headers: serverHeaders() }).catch(() => {}); } }
     function resumeCampaign() {
         let d = null; try { d = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch {}
         if (!d || d.v !== 1 || d.levelIndex >= levels.length) { clearSave(); return false; }
@@ -1338,7 +1361,7 @@ export async function startGame() {
     // Debug hook for automated checks: only when the page is opened with ?debug=1
     if (new URLSearchParams(location.search).has('debug')) {
         window.__woolfie = {
-            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
+            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
             givePistol: () => { player.gun = true; player.ammo = GUN_AMMO; }, fire, raiseAlarm, markObjective,
             teleport: (x, y) => { player.x = x; player.y = y; player.px = x * TILE; player.py = y * TILE; lastTile = [x, y]; },
             face: (d) => { player.dir = d; }, resumeCampaign, saveCampaign, setDifficulty: (d) => { difficulty = d; }, alertAll: alertAllGuards, throwStone, takeUniform, interact, throwGrenade, explode, giveGrenades: (n) => { player.grenades = n; }, startDaily: () => startCampaign({ dailyRun: true }), goBack: goBackUpstairs, pickPlans: () => { lockdown = true; markObjective('plans'); }, markPlans: () => doneSet(levels.findIndex((l) => (l.objectives ?? []).some((o) => o.id === 'plans'))).add('plans'), addBody: (x, y) => bodies.push({ px: x * TILE, py: y * TILE, dir: 'down', type: 'guard', born: time - 1 }), killGuard: (i) => { const g = guards.splice(i, 1)[0]; bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time - 1 }); },

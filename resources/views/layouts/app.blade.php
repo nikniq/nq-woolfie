@@ -20,8 +20,20 @@
                 <a href="{{ route('editor.index') }}" @class(['active' => request()->routeIs('editor.*')])>Editor</a>
             @endif
         </nav>
+        <div class="account">
+            @auth
+                <a href="{{ route('player', auth()->user()->name) }}">{{ auth()->user()->name }}</a>
+                <form method="post" action="{{ route('logout') }}" class="inline">@csrf <button type="submit" class="link">Sign out</button></form>
+            @else
+                <a href="{{ route('login') }}" @class(['active' => request()->routeIs('login')])>Sign in</a>
+                <a href="{{ route('register') }}" @class(['active' => request()->routeIs('register')])>Register</a>
+            @endauth
+        </div>
     </header>
     <main>
+        @if (session('status'))
+            <p class="flash">{{ session('status') }}</p>
+        @endif
         @yield('content')
     </main>
 </body>

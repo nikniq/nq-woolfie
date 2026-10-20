@@ -8,7 +8,7 @@ class Achievement extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['player_name', 'key', 'campaign', 'earned_at'];
+    protected $fillable = ['user_id', 'player_name', 'key', 'campaign', 'earned_at'];
 
     protected function casts(): array
     {
@@ -53,7 +53,7 @@ class Achievement extends Model
             if (in_array($key, $held, true) || ! $def['test']($result)) {
                 continue;
             }
-            static::create(['player_name' => $result->player_name, 'key' => $key, 'campaign' => $result->campaign, 'earned_at' => now()]);
+            static::create(['user_id' => $result->user_id, 'player_name' => $result->player_name, 'key' => $key, 'campaign' => $result->campaign, 'earned_at' => now()]);
             $new[] = $key;
         }
 

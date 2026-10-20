@@ -13,6 +13,10 @@ class CampaignResultController extends Controller
     public function store(StoreCampaignResultRequest $request): JsonResponse
     {
         $data = $request->validated();
+        if ($user = $request->user()) {
+            $data['user_id'] = $user->id;
+            $data['player_name'] = $user->name;
+        }
         $result = CampaignResult::updateOrCreate(['campaign' => $data['campaign']], $data);
         $earned = Achievement::awardFor($result);
         $catalogue = Achievement::catalogue();

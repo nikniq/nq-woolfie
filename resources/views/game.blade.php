@@ -8,6 +8,7 @@
      data-runs-url="{{ route('api.runs.store') }}"
      data-campaigns-url="{{ route('api.campaigns.store') }}"
      data-daily-url="{{ route('api.daily.show') }}"
+     @auth data-user-name="{{ auth()->user()->name }}" data-save-url="{{ route('save.show') }}" @endauth
      data-sounds='@json($sounds)'>
     <div id="stage">
         <canvas id="game" width="640" height="320"></canvas>
@@ -34,9 +35,15 @@
             <label><input type="checkbox" id="sound" checked> SFX</label>
             <label id="music"><input type="checkbox" id="musicToggle" checked> Music</label>
         </div>
-        <label class="field">Name
-            <input type="text" id="playerName" maxlength="24" placeholder="Anonymous" autocomplete="nickname">
-        </label>
+        @auth
+            <label class="field">Playing as
+                <input type="text" id="playerName" value="{{ auth()->user()->name }}" readonly>
+            </label>
+        @else
+            <label class="field">Name <a class="muted small" href="{{ route('register') }}">(register to save progress)</a>
+                <input type="text" id="playerName" maxlength="24" placeholder="Anonymous" autocomplete="nickname">
+            </label>
+        @endauth
         <div id="objectives"></div>
         <div id="weapon">Unarmed</div>
         <div id="castleWrap">

@@ -92,8 +92,11 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
 - **Difficulty** is picked on the title screen with 1, 2 or 3: it sets your
   lives (5, 3 or 2), guard speed and sight, whether guards shoot, and how many
   reinforcements an alarm brings. Runs record it on the leaderboard.
-- **Your campaign is saved** in the browser whenever you clear a room, travel
-  or get caught. Press C on the title screen to continue.
+- **Your campaign is saved** whenever you clear a room, travel or get caught.
+  Press C on the title screen to continue. Register an account (top right)
+  and the save is also kept on the server, so you can continue on another
+  device, your runs and achievements are credited to your account, and your
+  player name is reserved.
 - Each treasure is 100 points, each room 250, and objectives award 200 to 500
   on top.
 

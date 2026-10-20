@@ -4,7 +4,7 @@
 
 @section('content')
 <section class="player">
-    <h2>{{ $name }}</h2>
+    <h2>{{ $name }} @if ($registered)<span class="badge" title="Registered account">✓ registered</span>@endif</h2>
     <p class="stats">
         Campaigns: <strong>{{ $summary['campaigns'] }}</strong> &middot;
         Escapes: <strong>{{ $summary['escapes'] }}</strong> &middot;

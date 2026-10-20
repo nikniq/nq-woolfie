@@ -6,6 +6,7 @@ use App\Models\Achievement;
 use App\Models\CampaignResult;
 use App\Models\GameRun;
 use App\Models\Level;
+use App\Models\User;
 use Illuminate\View\View;
 
 class PlayerController extends Controller
@@ -37,6 +38,7 @@ class PlayerController extends Controller
 
         return view('player', [
             'name' => $name,
+            'registered' => User::where('name', $name)->exists(),
             'results' => $results,
             'catalogue' => $catalogue,
             'held' => $held,
