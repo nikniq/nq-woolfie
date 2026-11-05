@@ -24,7 +24,7 @@
         </div>
     </div>
     <div id="hud">
-        <div id="status">Arrows / WASD move, Shift sprints (noisy), F fires, Q throws a stone, G a grenade, E takes a uniform from a body or carries it. Crates hide you. P pauses, M map, R restarts. Gamepad works too.</div>
+        <div id="status">Arrows / WASD move, Shift sprints (noisy), F fires, Q throws a stone, G a grenade, E takes a uniform from a body or carries it. Crates hide you. P pauses, M map, H guide, R restarts. Gamepad works too.</div>
         <div id="controls">
             <div id="levelLabel">Level <span id="level">1</span> / {{ $levelCount }}</div>
             <div id="timer">0.0s</div>
@@ -51,6 +51,17 @@
             <canvas id="castle" width="260" height="190"></canvas>
         </div>
         <div id="info"></div>
+        <details id="legend">
+            <summary>New here? How to play</summary>
+            <ol>
+                <li>Find the <strong>key</strong>, then take the <strong>stairs</strong>. The green arrow points the way (H turns it off).</li>
+                <li>Stay out of the guards' <strong>light cones</strong>. The eye over a guard fills while it can see you; step away before it turns red.</li>
+                <li>Stand still on <strong>crates</strong> to hide. Walking is quiet, sprinting (Shift) is loud.</li>
+                <li>Q throws a <strong>stone</strong> to lure a guard away.</li>
+                <li>Reach the <strong>war plans</strong> in the last room, then come back to the gate where you started.</li>
+            </ol>
+            <p class="muted">Easy mode gives five lives, guards that never shoot, and you keep your key and gold when caught. Pick the difficulty with 1, 2, 3 on the title screen.</p>
+        </details>
         <button id="restart" type="button">Restart level</button>
     </div>
 </div>

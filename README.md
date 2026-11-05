@@ -89,6 +89,12 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
   across them, trapdoors that drop you into the room below, gas vents that
   reverse your controls, crumbling floor that becomes a pit behind you, and
   swinging blades patrolling corridors.
+- **Beginner help.** New players start on easy with the guide on: a green
+  arrow and ring show the next goal and dotted lines show patrol routes (H
+  toggles it). Guards do not spot you instantly: an eye above each guard
+  fills while it can see you, faster up close, and it only reacts when the
+  eye is full. On easy you also keep your key and gold when caught. The
+  "How to play" panel under the HUD covers the basics.
 - **Difficulty** is picked on the title screen with 1, 2 or 3: it sets your
   lives (5, 3 or 2), guard speed and sight, whether guards shoot, and how many
   reinforcements an alarm brings. Runs record it on the leaderboard.

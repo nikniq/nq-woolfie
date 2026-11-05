@@ -106,3 +106,8 @@ a.button{display:inline-block;padding:8px 12px;background:linear-gradient(#3a3a4
 .badges li{padding:4px 6px;border:1px solid #222}
 .badges li.locked .badge{opacity:.35;filter:grayscale(1)}
 .badges li .muted{display:block;font-size:15px}
+#legend{margin-top:8px;background:#0b0b0b;border:1px solid #2a2a30;padding:6px 8px;font-size:17px}
+#legend summary{cursor:pointer;color:#9fffa0}
+#legend ol{margin:6px 0;padding-left:20px}
+#legend li{margin:3px 0;color:#ccc}
+#legend strong{color:#f2d06b;font-weight:normal}
