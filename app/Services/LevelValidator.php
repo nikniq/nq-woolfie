@@ -85,6 +85,14 @@ class LevelValidator
             $problems = array_merge($problems, $this->checkPath($map, $points, true, "$label: guard $i patrol"));
         }
         foreach ($traps as $i => $trap) {
+            if (($trap['type'] ?? '') === 'light') {
+                [$lx, $ly] = ($trap['at'] ?? []) + [-1, -1];
+                if (in_array($map[$ly][$lx] ?? Level::TILE_WALL, [Level::TILE_WALL, Level::TILE_CRACKED, Level::TILE_DOOR], true)) {
+                    $problems[] = "$label: searchlight $i at ($lx,$ly) must stand on an open tile";
+                }
+
+                continue;
+            }
             if (($trap['type'] ?? '') !== 'blade') {
                 $problems[] = "$label: trap $i has unknown type";
 

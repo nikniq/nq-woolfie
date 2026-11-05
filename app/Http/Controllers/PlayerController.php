@@ -33,6 +33,7 @@ class PlayerController extends Controller
                 'clears' => $completed->count(),
                 'best_time' => $completed->min('time_ms'),
                 'best_score' => $completed->max('score'),
+                'best_stars' => $completed->max('stars'),
             ];
         });
 

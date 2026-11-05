@@ -21,6 +21,7 @@ class StoreGameRunRequest extends FormRequest
             'outcome' => ['required', Rule::in([GameRun::OUTCOME_COMPLETED, GameRun::OUTCOME_CAUGHT])],
             'time_ms' => ['required', 'integer', 'min:0', 'max:86400000'],
             'score' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'stars' => ['nullable', 'integer', 'min:1', 'max:3'],
             'campaign' => ['nullable', 'uuid'],
             'difficulty' => ['nullable', Rule::in(GameRun::DIFFICULTIES)],
         ];

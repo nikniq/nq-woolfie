@@ -13,7 +13,7 @@ class GameRun extends Model
 
     public const DIFFICULTIES = ['easy', 'normal', 'hard'];
 
-    protected $fillable = ['user_id', 'level_id', 'player_name', 'outcome', 'time_ms', 'score', 'campaign', 'difficulty'];
+    protected $fillable = ['user_id', 'level_id', 'player_name', 'outcome', 'time_ms', 'score', 'stars', 'campaign', 'difficulty'];
 
     public function level(): BelongsTo
     {

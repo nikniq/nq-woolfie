@@ -16,7 +16,7 @@ class PlayerProfileTest extends TestCase
     {
         $this->seed(LevelSeeder::class);
         $level = Level::where('number', 1)->firstOrFail();
-        GameRun::create(['level_id' => $level->id, 'player_name' => 'Vera', 'outcome' => 'completed', 'time_ms' => 8000, 'score' => 350]);
+        GameRun::create(['level_id' => $level->id, 'player_name' => 'Vera', 'outcome' => 'completed', 'time_ms' => 8000, 'score' => 350, 'stars' => 2]);
         $this->postJson('/api/campaigns', [
             'campaign' => '44444444-4444-4444-8444-444444444444', 'player_name' => 'Vera', 'difficulty' => 'normal', 'outcome' => 'escaped',
             'score' => 900, 'time_ms' => 120000, 'kills' => 0, 'alarms' => 1, 'lives_lost' => 1, 'stones' => 0,
@@ -24,7 +24,7 @@ class PlayerProfileTest extends TestCase
         ])->assertCreated();
 
         $this->get('/players/Vera')->assertOk()
-            ->assertSeeInOrder(['Vera', 'Escapes: <strong>1</strong>', 'Escapee', 'The Cellar', '8.00s', 'Escaped'], false);
+            ->assertSeeInOrder(['Vera', 'Escapes: <strong>1</strong>', 'Escapee', 'The Cellar', '★★☆', '8.00s', 'Escaped'], false);
         $this->get('/leaderboard')->assertOk()->assertSee('/players/Vera"', false);
     }
 

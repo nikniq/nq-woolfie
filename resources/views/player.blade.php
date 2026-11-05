@@ -30,13 +30,14 @@
 
     <h3>Rooms</h3>
     <table>
-        <thead><tr><th>Room</th><th>Attempts</th><th>Clears</th><th>Best time</th><th>Best score</th></tr></thead>
+        <thead><tr><th>Room</th><th>Attempts</th><th>Clears</th><th>Stars</th><th>Best time</th><th>Best score</th></tr></thead>
         <tbody>
         @foreach ($bestRooms as $row)
             <tr>
                 <td>{{ $row['level']->number }}. {{ $row['level']->name }}</td>
                 <td>{{ $row['attempts'] }}</td>
                 <td>{{ $row['clears'] }}</td>
+                <td class="stars">{{ $row['best_stars'] ? str_repeat('★', $row['best_stars']).str_repeat('☆', 3 - $row['best_stars']) : '—' }}</td>
                 <td>{{ $row['best_time'] !== null ? number_format($row['best_time'] / 1000, 2).'s' : '—' }}</td>
                 <td>{{ $row['best_score'] ?? '—' }}</td>
             </tr>

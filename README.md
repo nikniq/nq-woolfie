@@ -60,6 +60,9 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
 - **Bodies.** Press E over a body you have shot to take the uniform, and E
   again to carry it. Carrying is slow, you cannot fire, and any guard that
   sees you raises the alarm. Drop a body on crates to hide it for good.
+- **Searchlights** sweep between two directions in some rooms. Stay in the
+  beam for more than a moment and the alarm sounds. Cross while it is turned
+  away, shoot the lamp out, blow it up, or walk through wearing a uniform.
 - **Supply chests** take a few seconds to open while you stand still and
   exposed. They hold grenades, a bulletproof vest that stops one shot, ammo
   or stones.
@@ -92,7 +95,7 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
   swinging blades patrolling corridors.
 - **Stars.** Each cleared room earns up to three stars: one for escaping,
   one for finding all its gold, one for never raising the alarm. They show
-  on the room summary and on the castle map.
+  on the room summary, the castle map and your profile page.
 - Freeing a prisoner also earns an extra life. Guards say what they are
   thinking in short speech bubbles when they hear, spot or lose you.
 - **Beginner help.** New players start on easy with the guide on: a green

@@ -30,6 +30,8 @@ class LevelSeeder extends Seeder
      * on contact, cannot shoot).
      *
      * 'traps' lists moving hazards: ['type' => 'blade', 'from' => [x,y], 'to' => [x,y], 'spd' => px/frame]
+     * and searchlights: ['type' => 'light', 'at' => [x,y], 'from' => degrees, 'to' => degrees, 'spd' => degrees/second]
+     * (0 degrees points right, 90 down). A light sweeps between its two angles.
      *
      * 'castle' => [column, row] places the map on the castle overview; the
      * maps together form one castle, exits lead to the next room in order.
@@ -113,6 +115,9 @@ class LevelSeeder extends Seeder
                 'number' => 3,
                 'name' => 'The Armoury',
                 'castle' => [0, 1],
+                'traps' => [
+                    ['type' => 'light', 'at' => [5, 1], 'from' => 0, 'to' => 90, 'spd' => 35],
+                ],
                 'ascii' => [
                     '####################',
                     '#P..#....$...#....K#',
@@ -160,6 +165,7 @@ class LevelSeeder extends Seeder
                 'name' => 'The Keep',
                 'castle' => [1, 0],
                 'traps' => [
+                    ['type' => 'light', 'at' => [11, 5], 'from' => 180, 'to' => 270, 'spd' => 35],
                     ['type' => 'blade', 'from' => [7, 5], 'to' => [11, 5], 'spd' => 2.6],
                     ['type' => 'blade', 'from' => [1, 8], 'to' => [7, 8], 'spd' => 1.8],
                 ],
@@ -214,6 +220,9 @@ class LevelSeeder extends Seeder
                 'number' => 7,
                 'name' => 'The Library',
                 'castle' => [2, 1],
+                'traps' => [
+                    ['type' => 'light', 'at' => [6, 1], 'from' => 90, 'to' => 180, 'spd' => 40],
+                ],
                 'ascii' => [
                     '####################',
                     '#P.....#$..H..#...K#',
@@ -239,6 +248,7 @@ class LevelSeeder extends Seeder
                 'name' => 'The War Room',
                 'castle' => [2, 0],
                 'traps' => [
+                    ['type' => 'light', 'at' => [12, 3], 'from' => 180, 'to' => 270, 'spd' => 40],
                     ['type' => 'blade', 'from' => [9, 8], 'to' => [11, 8], 'spd' => 2.6],
                 ],
                 'ascii' => [

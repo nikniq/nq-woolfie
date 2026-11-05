@@ -23,6 +23,7 @@ export function startEditor() {
     let start = level.player_start.slice();
     let guards = (level.guards ?? []).map((g) => ({ patrol: g.patrol.map((p) => p.slice()), spd: g.spd, type: g.type ?? 'guard' }));
     let blades = (level.traps ?? []).filter((t) => t.type === 'blade').map((t) => ({ type: 'blade', from: t.from.slice(), to: t.to.slice(), spd: t.spd }));
+    let otherTraps = (level.traps ?? []).filter((t) => t.type !== 'blade'); // searchlights: kept as-is, shown as markers
     let portals = (level.portals ?? []).map((p) => ({ id: p.id, x: p.x, y: p.y }));
     let tool = { kind: 'tile', tile: 1 };
     let selectedGuard = -1, selectedBlade = -1, bladeEnd = 0;
@@ -108,6 +109,7 @@ export function startEditor() {
             g.patrol.forEach((p, k) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(p[0] * CELL + CELL / 2, p[1] * CELL + CELL / 2, k === 0 ? 6 : 4, 0, Math.PI * 2); ctx.fill(); if (k === 0) { ctx.fillStyle = '#000'; ctx.font = 'bold 9px system-ui'; ctx.fillText(String(i + 1), p[0] * CELL + CELL / 2, p[1] * CELL + CELL / 2 + 1); } });
         });
         blades.forEach((b, i) => { ctx.strokeStyle = i === selectedBlade ? '#fff' : '#c8c8d4'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(b.from[0] * CELL + CELL / 2, b.from[1] * CELL + CELL / 2); ctx.lineTo(b.to[0] * CELL + CELL / 2, b.to[1] * CELL + CELL / 2); ctx.stroke(); ctx.setLineDash([]); });
+        for (const t of otherTraps) { if (t.type !== 'light') continue; const cx = t.at[0] * CELL + CELL / 2, cy = t.at[1] * CELL + CELL / 2; ctx.fillStyle = 'rgba(200,230,255,0.25)'; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, CELL * 3, t.from * Math.PI / 180, t.to * Math.PI / 180); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#cfe6ff'; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill(); }
         ctx.lineWidth = 1;
     }
     function refresh() { refreshLists(); draw(); }
@@ -148,7 +150,7 @@ export function startEditor() {
     };
 
     // ---- save / play / export --------------------------------------------
-    const payload = () => ({ number: +$('edNumber').value, name: $('edName').value, map, player_start: start, guards, traps: blades, portals, castle_x: +$('edCastleX').value, castle_y: +$('edCastleY').value });
+    const payload = () => ({ number: +$('edNumber').value, name: $('edName').value, map, player_start: start, guards, traps: [...blades, ...otherTraps], portals, castle_x: +$('edCastleX').value, castle_y: +$('edCastleY').value });
     const showErrors = (list) => { const el = $('edErrors'); el.hidden = !list.length; el.innerHTML = list.map((e) => `<div>✗ ${e}</div>`).join(''); };
     async function save() {
         $('edStatus').textContent = 'Saving…'; showErrors([]);
@@ -162,7 +164,7 @@ export function startEditor() {
     $('edSave').onclick = save;
     $('edPlay').onclick = async () => { const b = await save(); if (b) location.href = `${root.dataset.playUrl}?level=${b.number}`; };
     $('edExport').onclick = async () => { const text = JSON.stringify(payload(), null, 1); try { await navigator.clipboard.writeText(text); $('edStatus').textContent = 'Room JSON copied to the clipboard.'; } catch { prompt('Room JSON', text); } };
-    $('edImport').onclick = () => { const text = prompt('Paste room JSON'); if (!text) return; try { const d = JSON.parse(text); map = d.map; start = d.player_start; guards = d.guards ?? []; blades = (d.traps ?? []).filter((t) => t.type === 'blade'); portals = d.portals ?? []; if (d.name) $('edName').value = d.name; $('edWidth').value = map[0].length; $('edHeight').value = map.length; refresh(); } catch (e) { showErrors([`Invalid JSON: ${e.message}`]); } };
+    $('edImport').onclick = () => { const text = prompt('Paste room JSON'); if (!text) return; try { const d = JSON.parse(text); map = d.map; start = d.player_start; guards = d.guards ?? []; blades = (d.traps ?? []).filter((t) => t.type === 'blade'); otherTraps = (d.traps ?? []).filter((t) => t.type !== 'blade'); portals = d.portals ?? []; if (d.name) $('edName').value = d.name; $('edWidth').value = map[0].length; $('edHeight').value = map.length; refresh(); } catch (e) { showErrors([`Invalid JSON: ${e.message}`]); } };
     $('edDelete')?.addEventListener('click', async () => { if (!confirm('Delete this room? Seeded rooms come back on the next seed; custom rooms are gone for good.')) return; const res = await fetch(root.dataset.deleteUrl, { method: 'DELETE', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf } }); if (res.ok) location.href = root.dataset.indexUrl; });
 
     refresh();

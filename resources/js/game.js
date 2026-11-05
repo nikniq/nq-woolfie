@@ -25,6 +25,7 @@ const STONE_RANGE = 4, STONE_NOISE = 180, MAX_STONES = 5, INVESTIGATE_LOOK = 2.2
 const DISGUISE_SIGHT = { guard: 0.3, officer: 0.6, dog: 1 }; // sight multiplier while wearing a uniform
 const LOCKDOWN = { speed: 1.15, sight: 1.2, sirenEvery: 4 }; // the castle after the plans are taken
 const CARRY_SPEED = 0.6;
+const LIGHT_RANGE = TILE * 5, LIGHT_HALF = 0.26, LIGHT_NOTICE = 0.6; // searchlight beam length, half-angle (rad), seconds to raise the alarm
 // Short barks guards say out loud when their state changes.
 const BARKS = {
     suspicious: ['Hm?', 'What was that?', 'Who is there?', 'Did you hear that?'],
@@ -50,6 +51,7 @@ const HINTS = {
     crates: 'Stand still on crates to hide from guards.',
     portal: 'Stone archways lead to other rooms of the castle. Press M for the castle map.',
     stone: 'Q throws a stone. Guards go to investigate where it lands.',
+    light: 'A searchlight sweeps ahead. Cross while the beam is turned away, shoot the lamp out, or walk through in a uniform.',
     chest: 'Stand still on a supply chest to open it. It takes a moment, so make sure no patrol is due.',
     grenade: 'G throws a grenade: it kills anything near the blast and blows cracked walls open.',
     vest: 'The vest soaks up one bullet. After that you are on your own.',
@@ -165,6 +167,7 @@ export async function startGame() {
     let assistPref = null; try { assistPref = localStorage.getItem('woolfie.assist'); } catch {}
     const assistOn = () => (assistPref === null ? difficulty === 'easy' : assistPref === '1');
     function toggleAssist() { assistPref = assistOn() ? '0' : '1'; try { localStorage.setItem('woolfie.assist', assistPref); } catch {} message = assistOn() ? 'Guide on: follow the arrow.' : 'Guide off.'; }
+    let lights = [];
     let blades = [], bullets = [], bodies = [], reinforcements = [];
     let objectivesDone = new Map(); // levelIndex -> Set(objective ids)
     let levelAlarmed = false, alarmUntil = -1, sirenNext = 0, kills = 0, muzzle = 0;
@@ -468,12 +471,13 @@ export async function startGame() {
         const lvl = levels[i];
         return { map: lvl.map.map((r) => r.slice()), hasKey: false, treasureFound: 0, levelScore: 0, alarmed: false, bodies: [],
             guards: lvl.guards.map(freshGuard),
+            lights: (lvl.traps ?? []).filter((t) => t.type === 'light').map((t) => ({ x: t.at[0] * TILE + 16, y: t.at[1] * TILE + 16, tx: t.at[0], ty: t.at[1], from: t.from * Math.PI / 180, to: t.to * Math.PI / 180, spd: t.spd * Math.PI / 180, angle: t.from * Math.PI / 180, dir: 1, broken: false, notice: 0 })),
             blades: (lvl.traps ?? []).filter((t) => t.type === 'blade').map((t) => ({ ...t, px: t.from[0] * TILE, py: t.from[1] * TILE, dir: 1, angle: 0 })) };
     }
     const roomState = (i) => { if (!levelStates.has(i)) levelStates.set(i, makeRoomState(i)); return levelStates.get(i); };
     function saveState() {
         if (player.carrying) { bodies.push({ ...player.carrying, px: player.px, py: player.py }); player.carrying = null; }
-        levelStates.set(levelIndex, { map: map.map((r) => r.slice()), hasKey: player.hasKey, treasureFound, levelScore, alarmed: levelAlarmed, bodies: bodies.map((b) => ({ ...b })), guards: guards.map((g) => ({ ...g })), blades: blades.map((b) => ({ ...b })) });
+        levelStates.set(levelIndex, { map: map.map((r) => r.slice()), hasKey: player.hasKey, treasureFound, levelScore, alarmed: levelAlarmed, bodies: bodies.map((b) => ({ ...b })), guards: guards.map((g) => ({ ...g })), blades: blades.map((b) => ({ ...b })), lights: lights.map((l) => ({ ...l, notice: 0 })) });
     }
     function loadLevel(i, { fromPortal = null, resume = false } = {}) {
         levelIndex = i;
@@ -497,7 +501,7 @@ export async function startGame() {
             if (mod('extra_guard') && st.guards.length) { const g0 = st.guards[0]; const extra = freshGuard({ patrol: g0.patrol.slice().reverse(), spd: g0.spd, type: g0.type }); extra.i = 0; st.guards.push(extra); }
         }
         guards = st.guards.map((g) => ({ ...g, path: [...(g.path ?? [])] }));
-        blades = st.blades.map((b) => ({ ...b })); bodies = st.bodies.map((b) => ({ ...b }));
+        blades = st.blades.map((b) => ({ ...b })); lights = (st.lights ?? []).map((l) => ({ ...l })); bodies = st.bodies.map((b) => ({ ...b }));
         bullets = []; enemyBullets = []; stones = []; reinforcements = []; alarmUntil = -1; muzzle = 0;
         if (!resume && !mod('no_stones')) player.stones = Math.min(MAX_STONES, player.stones + 1);
         if (mod('no_stones')) player.stones = 0;
@@ -551,7 +555,7 @@ export async function startGame() {
     async function reportRun(outcome) {
         if (runReported) return;
         runReported = true;
-        const payload = { level_id: levels[levelIndex].id, player_name: nameInput.value, outcome, time_ms: Math.round(elapsedMs()), score: levelScore, campaign: campaignId, difficulty };
+        const payload = { level_id: levels[levelIndex].id, player_name: nameInput.value, outcome, time_ms: Math.round(elapsedMs()), score: levelScore, stars: outcome === 'completed' ? (clearSummary?.stars ?? null) : null, campaign: campaignId, difficulty };
         try {
             const res = await fetch(api.runs, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': api.csrf }, body: JSON.stringify(payload) });
             stats.timeMs += payload.time_ms;
@@ -743,7 +747,9 @@ export async function startGame() {
         grenades.push({ x0: player.px + 16, y0: player.py + 16, x1: tx * TILE + 16, y1: ty * TILE + 16, t: 0, dur: 0.45, fuse: GRENADE_FUSE, tx, ty });
         player.hidden = false;
     }
+    function breakLight(l) { l.broken = true; l.notice = 0; playSoundAt('clink', l.x); spawnParticles(l.x, l.y, 14, '#cfe6ff', 90); popup('Lamp out', l.x, l.y - 12, '#cfe6ff'); message = 'You shot out the searchlight.'; }
     function explode(cx, cy) {
+        for (const l of lights) { if (!l.broken && Math.hypot(l.x - cx, l.y - cy) <= GRENADE_RADIUS) breakLight(l); }
         playSoundAt('boom', cx); shake = 0.6; flash = 0.25; spawnParticles(cx, cy, 40, '#ffb040', 160); spawnParticles(cx, cy, 20, '#555', 60);
         for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) {
             const t = map[y][x]; if (t !== CRACKED) continue;
@@ -797,6 +803,7 @@ export async function startGame() {
             ['crates', () => tileNear([HIDE])],
             ['portal', () => tileNear([PORTAL], 3)],
             ['chest', () => tileNear([CHEST], 3)],
+            ['light', () => lights.some((l) => !l.broken && Math.hypot(l.x - player.px - 16, l.y - player.py - 16) < TILE * 7)],
             ['stone', () => player.stones > 0 && guards.some((g) => g.state === 'calm' && Math.hypot(g.px - player.px, g.py - player.py) < TILE * 6)],
         ];
         for (const [k, cond] of checks) if (!hintsSeen.has(k) && cond()) { showHint(k); return; }
@@ -848,6 +855,7 @@ export async function startGame() {
                 b.x += b.vx / 2; b.y += b.vy / 2;
                 const tx = Math.floor(b.x / TILE), ty = Math.floor(b.y / TILE), t = tileAt(tx, ty);
                 if (t === WALL || t === CRACKED || (t === DOOR && !player.hasKey)) { spawnParticles(b.x, b.y, 5, '#ffd080', 40); return false; }
+                for (const l of lights) { if (!l.broken && Math.hypot(l.x - b.x, l.y - b.y) < 12) { breakLight(l); return false; } }
                 for (let k = 0; k < guards.length; k++) {
                     const g = guards[k];
                     if (Math.hypot(g.px + 16 - b.x, g.py + 16 - b.y) < 13) {
@@ -1090,6 +1098,16 @@ export async function startGame() {
         if (here === TRIPWIRE && player.sprinting && trippedAt < time - 2) { trippedAt = time; raiseAlarm('You tripped the alarm wire!'); }
         if (here === TRAPDOOR) { fallThroughTrapdoor(); return; }
         for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === GAS && gasActive(x, y) && Math.hypot(x * TILE + 16 - pcx, y * TILE + 16 - pcy) < GAS_RADIUS) { if (dizzy <= 0) { playSound('gas'); message = 'Gas! Your head spins... controls reversed.'; } dizzy = DIZZY_TIME; }
+        for (const l of lights) {
+            if (l.broken) continue;
+            l.angle += l.dir * l.spd * dt;
+            if (l.angle >= Math.max(l.from, l.to)) { l.angle = Math.max(l.from, l.to); l.dir = -1; } else if (l.angle <= Math.min(l.from, l.to)) { l.angle = Math.min(l.from, l.to); l.dir = 1; }
+            const lvx = pcx - l.x, lvy = pcy - l.y, ld = Math.hypot(lvx, lvy);
+            let da = Math.atan2(lvy, lvx) - l.angle; da = Math.atan2(Math.sin(da), Math.cos(da));
+            const lit = ld < LIGHT_RANGE && Math.abs(da) < LIGHT_HALF && !player.hidden && !(player.disguised && !player.carrying) && !rayBlocked(l.tx, l.ty, player.x, player.y);
+            l.notice = lit ? Math.min(1, l.notice + dt / LIGHT_NOTICE) : Math.max(0, l.notice - dt / 0.8);
+            if (l.notice >= 1 && alarmUntil <= time) { l.notice = 0; raiseAlarm('Caught in the searchlight!'); }
+        }
         for (const b of blades) {
             const [fx, fy] = b.from, [tx, ty] = b.to; const target = b.dir > 0 ? [tx * TILE, ty * TILE] : [fx * TILE, fy * TILE];
             const ddx = target[0] - b.px, ddy = target[1] - b.py, dist = Math.hypot(ddx, ddy);
@@ -1253,6 +1271,7 @@ export async function startGame() {
         for (const [x, y] of torchCache ?? []) hole(x * TILE + 16, y * TILE + 20, 80 + Math.sin(time * 9 + x) * 4, 0.7);
         for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) { const t = map[y][x]; if (t === EXIT) hole(x * TILE + 16, y * TILE + 16, 70, 0.8); else if (t === TREASURE || t === KEY) hole(x * TILE + 16, y * TILE + 16, 34, 0.5); else if (t === PORTAL) hole(x * TILE + 16, y * TILE + 16, 50, 0.6); else if (t === GAS && gasActive(x, y)) hole(x * TILE + 16, y * TILE + 16, 50, 0.5); }
         for (const b of blades) hole(b.px + 16, b.py + 16, 30, 0.5);
+        for (const l of lights) { if (l.broken) continue; lctx.fillStyle = 'rgba(0,0,0,0.6)'; lctx.beginPath(); lctx.moveTo(l.x, l.y); lctx.arc(l.x, l.y, LIGHT_RANGE * 0.95, l.angle - LIGHT_HALF, l.angle + LIGHT_HALF); lctx.closePath(); lctx.fill(); hole(l.x, l.y, 36, 0.7); }
         if (muzzle > 0) hole(player.px + 16, player.py + 16, 220, 0.9);
         for (const b of bullets) hole(b.x, b.y, 24, 0.6);
         for (const b of enemyBullets) hole(b.x, b.y, 24, 0.6);
@@ -1338,6 +1357,17 @@ export async function startGame() {
         drawWorld();
         // gas clouds
         for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === GAS && gasActive(x, y)) { const cx = x * TILE + 16, cy = y * TILE + 16; const gr = ctx.createRadialGradient(cx, cy, 4, cx, cy, GAS_RADIUS + Math.sin(time * 6) * 4); gr.addColorStop(0, 'rgba(120,220,90,0.45)'); gr.addColorStop(1, 'rgba(120,220,90,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, GAS_RADIUS + 6, 0, Math.PI * 2); ctx.fill(); }
+        // searchlights
+        for (const l of lights) {
+            if (!l.broken) {
+                const hot = l.notice > 0;
+                const grad = ctx.createRadialGradient(l.x, l.y, 6, l.x, l.y, LIGHT_RANGE);
+                grad.addColorStop(0, hot ? 'rgba(255,120,100,0.45)' : 'rgba(210,235,255,0.40)'); grad.addColorStop(1, hot ? 'rgba(255,120,100,0.04)' : 'rgba(210,235,255,0.03)');
+                ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.arc(l.x, l.y, LIGHT_RANGE, l.angle - LIGHT_HALF, l.angle + LIGHT_HALF); ctx.closePath(); ctx.fill();
+            }
+            ctx.fillStyle = '#2a2a30'; ctx.fillRect(l.x - 2, l.y - 2, 4, 14); ctx.fillStyle = '#55555f'; ctx.fillRect(l.x - 6, l.y + 10, 12, 3);
+            ctx.save(); ctx.translate(l.x, l.y - 2); ctx.rotate(l.angle); ctx.fillStyle = '#6a6a76'; ctx.fillRect(-6, -5, 12, 10); ctx.fillStyle = l.broken ? '#222' : '#eaf4ff'; ctx.fillRect(4, -4, 3, 8); ctx.restore();
+        }
         // swinging blades
         for (const b of blades) {
             ctx.save(); ctx.translate(b.px + 16, b.py + 16); ctx.rotate(b.angle);
@@ -1470,7 +1500,7 @@ export async function startGame() {
     // Debug hook for automated checks: only when the page is opened with ?debug=1
     if (new URLSearchParams(location.search).has('debug')) {
         window.__woolfie = {
-            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), stars: [...roomStars.entries()], says: guards.map((g) => (g.say && g.say.until > time ? g.say.text : null)), notice: guards.map((g) => +(g.notice ?? 0).toFixed(2)), assist: assistOn(), hasKey: player.hasKey, user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
+            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), lights: lights.map((l) => ({ broken: l.broken, notice: +l.notice.toFixed(2), angle: +l.angle.toFixed(2), tx: l.tx, ty: l.ty })), stars: [...roomStars.entries()], says: guards.map((g) => (g.say && g.say.until > time ? g.say.text : null)), notice: guards.map((g) => +(g.notice ?? 0).toFixed(2)), assist: assistOn(), hasKey: player.hasKey, user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
             givePistol: () => { player.gun = true; player.ammo = GUN_AMMO; }, fire, raiseAlarm, markObjective,
             teleport: (x, y) => { player.x = x; player.y = y; player.px = x * TILE; player.py = y * TILE; lastTile = [x, y]; },
             face: (d) => { player.dir = d; }, resumeCampaign, saveCampaign, setDifficulty: (d) => { difficulty = d; }, alertAll: alertAllGuards, throwStone, takeUniform, interact, throwGrenade, explode, giveGrenades: (n) => { player.grenades = n; }, startDaily: () => startCampaign({ dailyRun: true }), goBack: goBackUpstairs, pickPlans: () => { lockdown = true; markObjective('plans'); }, markPlans: () => doneSet(levels.findIndex((l) => (l.objectives ?? []).some((o) => o.id === 'plans'))).add('plans'), addBody: (x, y) => bodies.push({ px: x * TILE, py: y * TILE, dir: 'down', type: 'guard', born: time - 1 }), killGuard: (i) => { const g = guards.splice(i, 1)[0]; bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time - 1 }); },

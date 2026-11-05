@@ -30,9 +30,11 @@ class GameRunApiTest extends TestCase
             'outcome' => 'completed',
             'time_ms' => 12345,
             'score' => 650,
+            'stars' => 3,
         ])->assertCreated()
             ->assertJsonPath('data.player_name', 'BJ')
             ->assertJsonPath('data.score', 650)
+            ->assertJsonPath('data.stars', 3)
             ->assertJsonPath('best_time_ms', 12345)
             ->assertJsonPath('is_personal_best', true);
 
