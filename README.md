@@ -90,6 +90,11 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
   across them, trapdoors that drop you into the room below, gas vents that
   reverse your controls, crumbling floor that becomes a pit behind you, and
   swinging blades patrolling corridors.
+- **Stars.** Each cleared room earns up to three stars: one for escaping,
+  one for finding all its gold, one for never raising the alarm. They show
+  on the room summary and on the castle map.
+- Freeing a prisoner also earns an extra life. Guards say what they are
+  thinking in short speech bubbles when they hear, spot or lose you.
 - **Beginner help.** New players start on easy with the guide on: a green
   arrow and ring show the next goal and dotted lines show patrol routes (H
   toggles it). Guards do not spot you instantly: an eye above each guard
