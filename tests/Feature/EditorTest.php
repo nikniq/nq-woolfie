@@ -87,6 +87,19 @@ class EditorTest extends TestCase
         $this->getJson('/api/levels')->assertJsonCount(9, 'data');
     }
 
+    public function test_room_with_the_war_plans_is_rejected_without_an_officer(): void
+    {
+        $level = Level::where('number', 8)->firstOrFail();
+        $payload = $this->payloadFor($level);
+        $payload['guards'] = array_map(fn (array $guard): array => ['type' => 'guard'] + $guard, $payload['guards']);
+
+        $response = $this->withSession(['editor_ok' => true])->putJson("/editor/{$level->id}", $payload);
+
+        $response->assertUnprocessable()
+            ->assertJsonFragment(['Room: the war plans are kept in a safe, so the room needs an officer to carry the combination']);
+        $this->assertFalse($level->fresh()->custom);
+    }
+
     private function payloadFor(Level $level): array
     {
         return [

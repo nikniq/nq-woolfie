@@ -51,6 +51,7 @@ const HINTS = {
     crates: 'Stand still on crates to hide from guards.',
     portal: 'Stone archways lead to other rooms of the castle. Press M for the castle map.',
     stone: 'Q throws a stone. Guards go to investigate where it lands.',
+    safe: 'The plans are locked in a safe. An officer in this room carries the combination: press E just behind him to lift it, or search his body.',
     light: 'A searchlight sweeps ahead. Cross while the beam is turned away, shoot the lamp out, or walk through in a uniform.',
     chest: 'Stand still on a supply chest to open it. It takes a moment, so make sure no patrol is due.',
     grenade: 'G throws a grenade: it kills anything near the blast and blows cracked walls open.',
@@ -177,7 +178,7 @@ export async function startGame() {
     const gasActive = (x, y) => ((time + hash(y, x) * GAS_PERIOD) % GAS_PERIOD) > GAS_PERIOD - GAS_ON;
     let gpPrev = {};
 
-    const player = { x: 1, y: 1, px: TILE, py: TILE, hasKey: false, alive: true, dir: 'down', frameIdx: 0, frameTimer: 0, hidden: false, sprinting: false, gun: false, ammo: 0, stones: 3, disguised: false, carrying: null, grenades: 0, vest: false };
+    const player = { x: 1, y: 1, px: TILE, py: TILE, hasKey: false, alive: true, dir: 'down', frameIdx: 0, frameTimer: 0, hidden: false, sprinting: false, gun: false, ammo: 0, stones: 3, disguised: false, carrying: null, grenades: 0, vest: false, code: false };
 
     // ---- sprites -------------------------------------------------------
     function createSpriteSheet() {
@@ -518,7 +519,7 @@ export async function startGame() {
     function saveCampaign() {
         try {
             if (phase !== 'dead') saveState(); // a death has already decided what the room keeps
-            const snapshot = { v: 1, campaignId, difficulty, score, lives, levelIndex, kills, completed: [...completed], visited: [...visited], objectivesDone: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), levelStates: [...levelStates.entries()], gun: player.gun, ammo: player.ammo, stones: player.stones, disguised: player.disguised, roomStars: [...roomStars.entries()], lockdown, stats, grenades: player.grenades, vest: player.vest, dailyDate, mods: [...mods], savedAt: Date.now() };
+            const snapshot = { v: 1, campaignId, difficulty, score, lives, levelIndex, kills, completed: [...completed], visited: [...visited], objectivesDone: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), levelStates: [...levelStates.entries()], gun: player.gun, ammo: player.ammo, stones: player.stones, disguised: player.disguised, roomStars: [...roomStars.entries()], lockdown, stats, grenades: player.grenades, vest: player.vest, code: player.code, dailyDate, mods: [...mods], savedAt: Date.now() };
             localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot));
             hasSave = true;
             pushSave(snapshot);
@@ -531,7 +532,7 @@ export async function startGame() {
         ensureAudio();
         campaignId = d.campaignId; difficulty = DIFFICULTY[d.difficulty] ? d.difficulty : 'normal'; score = d.score; lives = d.lives; kills = d.kills ?? 0;
         completed = new Set(d.completed); visited = new Set(d.visited); objectivesDone = new Map(d.objectivesDone.map(([k, v]) => [k, new Set(v)]));
-        levelStates = new Map(d.levelStates); player.gun = d.gun; player.ammo = d.ammo; player.stones = d.stones ?? 3; player.disguised = !!d.disguised; roomStars = new Map(d.roomStars ?? []); player.grenades = d.grenades ?? 0; player.vest = !!d.vest; dailyDate = d.dailyDate ?? null; mods = new Set(d.mods ?? []); lockdown = !!d.lockdown; stats = d.stats ?? { alarms: 0, stones: 0, livesLost: 0, timeMs: 0, bodiesHidden: 0 };
+        levelStates = new Map(d.levelStates); player.gun = d.gun; player.ammo = d.ammo; player.stones = d.stones ?? 3; player.disguised = !!d.disguised; roomStars = new Map(d.roomStars ?? []); player.grenades = d.grenades ?? 0; player.vest = !!d.vest; player.code = !!d.code; dailyDate = d.dailyDate ?? null; mods = new Set(d.mods ?? []); lockdown = !!d.lockdown; stats = d.stats ?? { alarms: 0, stones: 0, livesLost: 0, timeMs: 0, bodiesHidden: 0 };
         levelIndex = d.levelIndex;
         const target = completed.has(levelIndex) ? nextTarget() : levelIndex;
         loadLevel(target === -1 ? levelIndex : target, { resume: true });
@@ -544,7 +545,7 @@ export async function startGame() {
         clearSave();
         mods = new Set(dailyRun && daily ? daily.modifiers.map((m) => m.key) : []); dailyDate = dailyRun && daily ? daily.date : null;
         if (dailyRun) difficulty = 'normal';
-        score = 0; lives = diff().lives; completed = new Set(); visited = new Set(); levelStates = new Map(); objectivesDone = new Map(); kills = 0; player.gun = false; player.ammo = 0; player.stones = 3; player.disguised = false; player.grenades = 0; player.vest = false; roomStars = new Map(); clearSummary = null; lockdown = false; earned = []; resultPosted = false; stats = { alarms: 0, stones: 0, livesLost: 0, timeMs: 0, bodiesHidden: 0 };
+        score = 0; lives = diff().lives; completed = new Set(); visited = new Set(); levelStates = new Map(); objectivesDone = new Map(); kills = 0; player.gun = false; player.ammo = 0; player.stones = 3; player.disguised = false; player.grenades = 0; player.vest = false; player.code = false; roomStars = new Map(); clearSummary = null; lockdown = false; earned = []; resultPosted = false; stats = { alarms: 0, stones: 0, livesLost: 0, timeMs: 0, bodiesHidden: 0 };
         campaignId = (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`.slice(0, 36));
         if (mod('fragile')) lives = 1;
         if (mod('lockdown_start')) lockdown = true;
@@ -810,10 +811,29 @@ export async function startGame() {
     }
     function nearBody() { return bodies.find((b) => !b.hidden && Math.hypot(b.px - player.px, b.py - player.py) < 20) ?? null; }
     const canStrip = (b) => b && !player.disguised && !b.stripped && b.type !== 'dog';
+    const roomHasPlans = () => map.some((row) => row.includes(PLANS));
+    const needsCode = () => !player.code && roomHasPlans();
+    // An officer close enough to reach: just outside the arm's length at which he would notice you.
+    function pickpocketTarget() {
+        if (!needsCode() || player.carrying) return null;
+        return guards.find((g) => g.type === 'officer' && g.state !== 'alert' && Math.hypot(g.px - player.px, g.py - player.py) < 46) ?? null;
+    }
+    function pickpocket(g) {
+        let a = Math.atan2(player.py - g.py, player.px - g.px) - DIR_ANGLE[g.dir]; a = Math.atan2(Math.sin(a), Math.cos(a));
+        if (Math.abs(a) < Math.PI * 0.6) {
+            g.state = 'alert'; g.alertAt = time; g.notice = 1; g.lastSeen = { x: player.x, y: player.y, time: now() }; say(g, 'alert'); playSoundAt('alert', g.px);
+            message = 'The officer catches your hand! Reach from behind him.';
+            return;
+        }
+        player.code = true; playSound('pickup'); popup('Combination!', player.px + 16, player.py - 8, '#fff3a8');
+        message = 'You lift the safe combination from the officer\'s pocket.';
+    }
     function interact() {
         if (phase !== 'playing') return;
         if (player.carrying) { dropBody(); return; }
+        const officer = pickpocketTarget(); if (officer) { pickpocket(officer); return; }
         const b = nearBody(); if (!b) return;
+        if (b.type === 'officer' && needsCode()) { player.code = true; playSound('pickup'); popup('Combination!', player.px + 16, player.py - 8, '#fff3a8'); message = 'You find the safe combination in the officer\'s coat.'; return; }
         if (canStrip(b)) { takeUniform(); return; }
         bodies.splice(bodies.indexOf(b), 1); player.carrying = b; playSound('uniform');
         message = 'You heave the body onto your shoulder. You move slowly and cannot fire. Drop it on crates to hide it.';
@@ -1069,6 +1089,7 @@ export async function startGame() {
                 enterRoom(dest, { x: sp[0], y: sp[1] }, `Down the stairs to ${levels[dest].name}`); saveCampaign(); return;
             } else { completeLevel(); return; }
         }
+        else if (here === PLANS && !player.code) { message = 'The plans are locked in a safe. An officer here carries the combination.'; showHint('safe'); }
         else if (here === PLANS) { map[player.y][player.x] = FLOOR; playSound('plans'); message = 'The war plans! Sirens wail: the castle is on lockdown. Get back to the gate!'; markObjective('plans'); lockdown = true; lockdownSiren = time + 1; flash = 0.3; shake = 0.4; saveCampaign(); spawnParticles(player.px + 16, player.py + 16, 24, '#fff3a8', 80); }
         else if (here === GUN) { map[player.y][player.x] = FLOOR; player.gun = true; player.ammo += GUN_AMMO; playSound('pickup'); message = `A pistol with ${GUN_AMMO} rounds. F or Ctrl fires. Shots are loud.`; popup('Pistol!', player.px + 16, player.py - 4, '#dddddd'); }
         else if (here === AMMO) { map[player.y][player.x] = FLOOR; player.ammo += AMMO_BOX; playSound('pickup'); message = `+${AMMO_BOX} rounds.`; popup(`+${AMMO_BOX} ammo`, player.px + 16, player.py - 4, '#dddddd'); }
@@ -1238,7 +1259,8 @@ export async function startGame() {
             }
             else if (t === SPIKES) { const st = spikeState(x, y); blit({ x: fr.spikes[st === 'up' ? 2 : st === 'warn' ? 1 : 0], y: 0 }, px, py); }
             else if (t !== FLOOR) blit({ x: fr.tiles[t], y: 0 }, px, py);
-            if (t === TREASURE || t === KEY || t === PLANS) { const pulse = 0.25 + 0.2 * Math.sin(time * 5 + x); ctx.fillStyle = `rgba(255,220,80,${pulse * 0.25})`; ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); }
+            if (t === PLANS && !player.code) { ctx.fillStyle = 'rgba(40,40,48,0.82)'; ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); ctx.strokeStyle = '#8a8a96'; ctx.strokeRect(px + 4.5, py + 4.5, TILE - 9, TILE - 9); ctx.fillStyle = '#e8c33a'; ctx.fillRect(px + 12, py + 15, 8, 7); ctx.strokeStyle = '#e8c33a'; ctx.beginPath(); ctx.arc(px + 16, py + 15, 3, Math.PI, 0); ctx.stroke(); }
+            if (t === TREASURE || t === KEY || (t === PLANS && player.code)) { const pulse = 0.25 + 0.2 * Math.sin(time * 5 + x); ctx.fillStyle = `rgba(255,220,80,${pulse * 0.25})`; ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); }
         }
         // wall drop shadows onto floor below
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -1392,7 +1414,7 @@ export async function startGame() {
         }
         if (chestTimer > 0 && chestAt) { const w = TILE * 1.4, x = player.px + 16 - w / 2, y = player.py - 10; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x, y, w, 5); ctx.fillStyle = '#ffd080'; ctx.fillRect(x, y, w * Math.min(1, chestTimer / CHEST_TIME), 5); }
         for (const st of stones) { const k = st.t / st.dur; const x = st.x0 + (st.x1 - st.x0) * k, y = st.y0 + (st.y1 - st.y0) * k - Math.sin(k * Math.PI) * 26; ctx.fillStyle = '#c8c8c8'; ctx.fillRect(x - 2, y - 2, 4, 4); }
-        { const nb = nearBody(); const label = player.carrying ? (tileAt(player.x, player.y) === HIDE ? 'E: hide body in crates' : 'E: drop body') : nb ? (canStrip(nb) ? 'E: take uniform' : 'E: pick up body') : null; if (label && phase === 'playing') { ctx.fillStyle = '#9fd0ff'; ctx.font = '16px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText(label, player.px + 16, player.py - 10); ctx.textAlign = 'left'; } }
+        { const nb = nearBody(); const label = pickpocketTarget() ? 'E: lift the combination' : nearBody()?.type === 'officer' && needsCode() ? 'E: search the officer' : player.carrying ? (tileAt(player.x, player.y) === HIDE ? 'E: hide body in crates' : 'E: drop body') : nb ? (canStrip(nb) ? 'E: take uniform' : 'E: pick up body') : null; if (label && phase === 'playing') { ctx.fillStyle = '#9fd0ff'; ctx.font = '16px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText(label, player.px + 16, player.py - 10); ctx.textAlign = 'left'; } }
         for (const b of enemyBullets) { ctx.strokeStyle = '#ff9050'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x - b.vx, b.y - b.vy); ctx.lineTo(b.x, b.y); ctx.stroke(); }
         for (const b of bullets) { ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x - b.vx, b.y - b.vy); ctx.lineTo(b.x, b.y); ctx.stroke(); }
         guards.forEach((g) => {
@@ -1433,7 +1455,14 @@ export async function startGame() {
             let goal = null, label = '';
             const plansHere = find(PLANS);
             if (lockdown) { goal = levels[levelIndex].player_start; label = levelIndex === 0 ? 'Escape through the gate' : 'Take the stairs back up'; }
-            else if (plansHere && player.hasKey) { goal = plansHere; label = 'Take the war plans'; }
+            else if (plansHere && player.hasKey && !player.code) {
+                const body = bodies.find((b) => b.type === 'officer' && !b.hidden);
+                const off = guards.filter((g) => g.type === 'officer').sort((a, b) => Math.hypot(a.px - player.px, a.py - player.py) - Math.hypot(b.px - player.px, b.py - player.py))[0];
+                const src = body ?? off;
+                if (src) { goal = [Math.floor((src.px + 16) / TILE), Math.floor((src.py + 16) / TILE)]; label = body ? 'Search the officer for the safe combination (E)' : 'Lift the safe combination from an officer (E from behind)'; }
+                else { goal = plansHere; label = 'Take the war plans'; }
+            }
+            else if (plansHere && player.hasKey) { goal = plansHere; label = 'Open the safe and take the war plans'; }
             else if (!player.hasKey && find(KEY)) { goal = find(KEY); label = 'Get the key'; }
             else { goal = find(EXIT); label = 'Take the stairs down'; }
             ctx.setLineDash([2, 5]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,120,120,0.35)';
@@ -1493,14 +1522,14 @@ export async function startGame() {
             objEl.innerHTML = `<div class="main">${main}</div><ul>${rows.join('')}</ul>`;
         }
         const weaponEl = document.getElementById('weapon');
-        if (weaponEl) weaponEl.textContent = `${player.gun ? `Pistol: ${player.ammo} rounds` : 'Unarmed'} · Stones: ${player.stones}${player.disguised ? ' · Disguised' : ''}${player.carrying ? ' · Carrying a body' : ''}${player.grenades ? ` · Grenades: ${player.grenades}` : ''}${player.vest ? ' · Vest' : ''}${dailyDate ? ' · DAILY' : ''}`;
+        if (weaponEl) weaponEl.textContent = `${player.gun ? `Pistol: ${player.ammo} rounds` : 'Unarmed'} · Stones: ${player.stones}${player.disguised ? ' · Disguised' : ''}${player.carrying ? ' · Carrying a body' : ''}${player.grenades ? ` · Grenades: ${player.grenades}` : ''}${player.vest ? ' · Vest' : ''}${player.code ? ' · Safe combination' : ''}${dailyDate ? ' · DAILY' : ''}`;
         info.textContent = `${lvl.name}${player.hidden ? '  (hidden)' : dizzy > 0 ? '  (dizzy!)' : player.sprinting ? '  (sprinting!)' : player.disguised ? '  (in uniform)' : ''}\nKey: ${player.hasKey ? 'yes' : 'no'}   Gold: ${treasureFound}/${treasureTotal}   Rooms: ${completed.size}/${levels.length}\n${message}`;
     }
 
     // Debug hook for automated checks: only when the page is opened with ?debug=1
     if (new URLSearchParams(location.search).has('debug')) {
         window.__woolfie = {
-            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), lights: lights.map((l) => ({ broken: l.broken, notice: +l.notice.toFixed(2), angle: +l.angle.toFixed(2), tx: l.tx, ty: l.ty })), stars: [...roomStars.entries()], says: guards.map((g) => (g.say && g.say.until > time ? g.say.text : null)), notice: guards.map((g) => +(g.notice ?? 0).toFixed(2)), assist: assistOn(), hasKey: player.hasKey, user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
+            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), code: player.code, guardPos: guards.map((g) => [Math.round(g.px), Math.round(g.py), g.dir, g.type]), lights: lights.map((l) => ({ broken: l.broken, notice: +l.notice.toFixed(2), angle: +l.angle.toFixed(2), tx: l.tx, ty: l.ty })), stars: [...roomStars.entries()], says: guards.map((g) => (g.say && g.say.until > time ? g.say.text : null)), notice: guards.map((g) => +(g.notice ?? 0).toFixed(2)), assist: assistOn(), hasKey: player.hasKey, user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
             givePistol: () => { player.gun = true; player.ammo = GUN_AMMO; }, fire, raiseAlarm, markObjective,
             teleport: (x, y) => { player.x = x; player.y = y; player.px = x * TILE; player.py = y * TILE; lastTile = [x, y]; },
             face: (d) => { player.dir = d; }, resumeCampaign, saveCampaign, setDifficulty: (d) => { difficulty = d; }, alertAll: alertAllGuards, throwStone, takeUniform, interact, throwGrenade, explode, giveGrenades: (n) => { player.grenades = n; }, startDaily: () => startCampaign({ dailyRun: true }), goBack: goBackUpstairs, pickPlans: () => { lockdown = true; markObjective('plans'); }, markPlans: () => doneSet(levels.findIndex((l) => (l.objectives ?? []).some((o) => o.id === 'plans'))).add('plans'), addBody: (x, y) => bodies.push({ px: x * TILE, py: y * TILE, dir: 'down', type: 'guard', born: time - 1 }), killGuard: (i) => { const g = guards.splice(i, 1)[0]; bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time - 1 }); },

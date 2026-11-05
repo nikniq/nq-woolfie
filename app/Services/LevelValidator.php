@@ -75,6 +75,9 @@ class LevelValidator
                 }
             }
         }
+        if ($this->find($map, Level::TILE_PLANS) && ! in_array('officer', array_column($guards, 'type'), true)) {
+            $problems[] = "$label: the war plans are kept in a safe, so the room needs an officer to carry the combination";
+        }
         foreach ($guards as $i => $g) {
             $points = $g['patrol'] ?? [];
             if (count($points) < 1) {

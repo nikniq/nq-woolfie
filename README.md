@@ -60,6 +60,9 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
 - **Bodies.** Press E over a body you have shot to take the uniform, and E
   again to carry it. Carrying is slow, you cannot fire, and any guard that
   sees you raises the alarm. Drop a body on crates to hide it for good.
+- **The safe.** The war plans are locked in a safe. An officer in that room
+  carries the combination: creep up just behind him and press E to lift it,
+  or search his body. Reach from the front and he catches your hand.
 - **Searchlights** sweep between two directions in some rooms. Stay in the
   beam for more than a moment and the alarm sounds. Cross while it is turned
   away, shoot the lamp out, blow it up, or walk through wearing a uniform.
