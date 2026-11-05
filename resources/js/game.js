@@ -34,7 +34,8 @@ const BARKS = {
     body: ['Man down!', 'Sound the alarm!'],
     dog: ['Grrr!', 'Woof!'],
 };
-const CHEST = 18, CRACKED = 19;
+const CHEST = 18, CRACKED = 19, FUSE = 20;
+const POWER_OUT = 12, POWER_SIGHT = 0.6; // seconds a pulled fuse keeps the room dark, and how far guards see in the dark
 const CHEST_TIME = 2.5, CHEST_LOOT = ['grenade', 'vest', 'ammo', 'grenade', 'stones'];
 const GRENADE_RANGE = 3, GRENADE_FUSE = 1.1, GRENADE_RADIUS = TILE * 1.6;
 // One-time contextual hints, shown the first time each situation comes up.
@@ -53,6 +54,7 @@ const HINTS = {
     stone: 'Q throws a stone. Guards go to investigate where it lands.',
     safe: 'The plans are locked in a safe. An officer in this room carries the combination: press E just behind him to lift it, or search his body.',
     light: 'A searchlight sweeps ahead. Cross while the beam is turned away, shoot the lamp out, or walk through in a uniform.',
+    fuse: 'A fuse box. Step on it to cut the power: searchlights and torches go dark and guards see less, but one comes to check.',
     chest: 'Stand still on a supply chest to open it. It takes a moment, so make sure no patrol is due.',
     grenade: 'G throws a grenade: it kills anything near the blast and blows cracked walls open.',
     vest: 'The vest soaks up one bullet. After that you are on your own.',
@@ -154,6 +156,8 @@ export async function startGame() {
     let deathAt = 0, doorsOpenedAt = -1, motes = [];
     let enemyBullets = [], stones = [], grenades = [];
     let chestTimer = 0, chestAt = null;
+    let powerOutUntil = 0, fuseArmed = true;
+    const powerOut = () => powerOutUntil > time;
     let daily = null, dailyDate = null, mods = new Set();
     const mod = (k) => mods.has(k);
     let lockdown = false, lockdownSiren = 0, earned = [], resultPosted = false;
@@ -255,6 +259,7 @@ export async function startGame() {
         tile(20, () => { px(0, 0, TILE, TILE, '#24242a'); px(6, 12, 20, 5, '#2a2a30'); px(7, 13, 18, 1, '#55555f'); px(8, 16, 7, 10, '#3a2a16'); px(9, 17, 5, 8, '#5a4020'); px(14, 17, 4, 4, '#2a2a30'); px(24, 12, 3, 3, '#1a1a1e'); });
         tile(21, () => { px(0, 0, TILE, TILE, '#24242a'); px(7, 11, 18, 14, '#4a5a3a'); px(7, 11, 18, 3, '#6a7a4a'); px(9, 16, 14, 6, '#2a2a30'); for (let i = 0; i < 4; i++) px(10 + i * 3.5, 17, 2, 4, '#d8b860'); });
         tile(32, () => { px(0, 0, TILE, TILE, '#24242a'); px(5, 9, 22, 18, '#5a3a1a'); px(5, 9, 22, 7, '#7a5428'); px(5, 15, 22, 2, '#3a3a40'); px(5, 22, 22, 2, '#3a3a40'); px(14, 16, 4, 5, '#8a8a96'); px(15, 17, 2, 2, '#111'); px(7, 10, 18, 1, '#9a7448'); });
+        tile(34, () => { px(0, 0, TILE, TILE, '#24242a'); px(8, 5, 16, 22, '#3a3f4a'); px(8, 5, 16, 2, '#5a6070'); px(10, 9, 12, 14, '#22252c'); px(12, 11, 3, 4, '#e8c33a'); px(17, 11, 3, 4, '#e8c33a'); px(12, 17, 3, 4, '#b03030'); px(17, 17, 3, 4, '#e8c33a'); px(15, 27, 2, 5, '#111'); });
         tile(33, () => { px(0, 0, TILE, TILE, '#4a4a3a'); for (let r = 0; r < 4; r++) { const off = (r % 2) * 8; for (let b = -1; b < 3; b++) { const bx = b * 16 + off + 1, by = r * 8 + 1; px(bx, by, 14, 6, '#5e5a48'); px(bx, by, 14, 1, '#74705c'); } } g.strokeStyle = '#111'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(6, 2); g.lineTo(14, 12); g.lineTo(11, 20); g.lineTo(18, 30); g.moveTo(14, 12); g.lineTo(24, 9); g.moveTo(11, 20); g.lineTo(3, 23); g.moveTo(18, 24); g.lineTo(27, 27); g.stroke(); g.lineWidth = 1; });
         tile(22, () => { px(0, 0, TILE, TILE, '#1a1a1e'); px(10, 9, 12, 14, '#5a4a3a'); px(12, 5, 8, 6, '#e8b990'); px(12, 4, 8, 2, '#3a2a16'); for (let i = 0; i < 5; i++) px(3 + i * 6, 2, 2, 28, '#7a7a86'); px(2, 2, 28, 2, '#8a8a96'); px(2, 28, 28, 2, '#8a8a96'); });
 
@@ -323,7 +328,7 @@ export async function startGame() {
             of[d] = [0, 1].map((f) => ({ x: 8 + di * 2 + f, y: 3 }));
             df[d] = [0, 1].map((f) => ({ x: 16 + di * 2 + f, y: 3 }));
         });
-        return { img, frames: { tiles: { [WALL]: 4, [DOOR]: 5, [KEY]: 6, [EXIT]: 7, [TREASURE]: 8, [HIDE]: 9, [PORTAL]: 10, [SPIKES]: 11, [TRIPWIRE]: 14, [TRAPDOOR]: 15, [GAS]: 16, [CRUMBLE]: 17, [PIT]: 18, [PLANS]: 19, [GUN]: 20, [AMMO]: 21, [PRISONER]: 22, [CHEST]: 32, [CRACKED]: 33 }, spikes: [11, 12, 13], wallFace: 23, decals: [24, 25, 26, 27], decor: [28, 29, 30], doorOpen: 31, player: pf, disguised: xf, guard: gf, officer: of, dog: df } };
+        return { img, frames: { tiles: { [WALL]: 4, [DOOR]: 5, [KEY]: 6, [EXIT]: 7, [TREASURE]: 8, [HIDE]: 9, [PORTAL]: 10, [SPIKES]: 11, [TRIPWIRE]: 14, [TRAPDOOR]: 15, [GAS]: 16, [CRUMBLE]: 17, [PIT]: 18, [PLANS]: 19, [GUN]: 20, [AMMO]: 21, [PRISONER]: 22, [CHEST]: 32, [CRACKED]: 33, [FUSE]: 34 }, spikes: [11, 12, 13], wallFace: 23, decals: [24, 25, 26, 27], decor: [28, 29, 30], doorOpen: 31, player: pf, disguised: xf, guard: gf, officer: of, dog: df } };
     }
     const sheet = createSpriteSheet();
     const sprites = { sheet: sheet.img, frames: sheet.frames, ready: false };
@@ -506,7 +511,7 @@ export async function startGame() {
         bullets = []; enemyBullets = []; stones = []; reinforcements = []; alarmUntil = -1; muzzle = 0;
         if (!resume && !mod('no_stones')) player.stones = Math.min(MAX_STONES, player.stones + 1);
         if (mod('no_stones')) player.stones = 0;
-        grenades = []; chestTimer = 0; chestAt = null;
+        grenades = []; chestTimer = 0; chestAt = null; powerOutUntil = 0; fuseArmed = true;
         onPortal = true;
         dizzy = 0; lastTile = [player.x, player.y]; trippedAt = -1;
         if (!resume) { runStart = now(); runReported = false; message = ''; }
@@ -748,6 +753,15 @@ export async function startGame() {
         grenades.push({ x0: player.px + 16, y0: player.py + 16, x1: tx * TILE + 16, y1: ty * TILE + 16, t: 0, dur: 0.45, fuse: GRENADE_FUSE, tx, ty });
         player.hidden = false;
     }
+    // Pulling the fuse blacks the room out for a while. The nearest guard that
+    // is not already hunting you walks over to see what happened.
+    function cutPower() {
+        powerOutUntil = time + POWER_OUT; playSound('clink'); flash = 0.15;
+        message = `Power cut! The room is dark for ${POWER_OUT} seconds.`; popup('Lights out', player.px + 16, player.py - 8, '#cfe6ff');
+        let nearest = null, best = Infinity;
+        for (const g of guards) { if (g.state === 'alert') continue; const d = Math.hypot(g.px - player.px, g.py - player.py); if (d < best) { best = d; nearest = g; } }
+        if (nearest) { investigate(nearest, player.x, player.y); nearest.say = { text: 'Who cut the lights?', until: time + 2.2 }; }
+    }
     function breakLight(l) { l.broken = true; l.notice = 0; playSoundAt('clink', l.x); spawnParticles(l.x, l.y, 14, '#cfe6ff', 90); popup('Lamp out', l.x, l.y - 12, '#cfe6ff'); message = 'You shot out the searchlight.'; }
     function explode(cx, cy) {
         for (const l of lights) { if (!l.broken && Math.hypot(l.x - cx, l.y - cy) <= GRENADE_RADIUS) breakLight(l); }
@@ -804,6 +818,7 @@ export async function startGame() {
             ['crates', () => tileNear([HIDE])],
             ['portal', () => tileNear([PORTAL], 3)],
             ['chest', () => tileNear([CHEST], 3)],
+            ['fuse', () => tileNear([FUSE], 3)],
             ['light', () => lights.some((l) => !l.broken && Math.hypot(l.x - player.px - 16, l.y - player.py - 16) < TILE * 7)],
             ['stone', () => player.stones > 0 && guards.some((g) => g.state === 'calm' && Math.hypot(g.px - player.px, g.py - player.py) < TILE * 6)],
         ];
@@ -1115,12 +1130,14 @@ export async function startGame() {
                 else if (loot === 'stones') { player.stones = Math.min(MAX_STONES, player.stones + 3); message = 'A pouch of stones.'; popup('+3 stones', pcx, pcy - 8, '#bbbbbb'); }
             }
         } else { chestTimer = 0; chestAt = null; }
+        if (here === FUSE) { if (fuseArmed && !powerOut()) cutPower(); fuseArmed = false; } else fuseArmed = true;
         if (here === SPIKES && spikeState(player.x, player.y) === 'up') { playSound('spikes'); die('Impaled on the spikes!'); return; }
         if (here === TRIPWIRE && player.sprinting && trippedAt < time - 2) { trippedAt = time; raiseAlarm('You tripped the alarm wire!'); }
         if (here === TRAPDOOR) { fallThroughTrapdoor(); return; }
         for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === GAS && gasActive(x, y) && Math.hypot(x * TILE + 16 - pcx, y * TILE + 16 - pcy) < GAS_RADIUS) { if (dizzy <= 0) { playSound('gas'); message = 'Gas! Your head spins... controls reversed.'; } dizzy = DIZZY_TIME; }
         for (const l of lights) {
             if (l.broken) continue;
+            if (powerOut()) { l.notice = 0; continue; }
             l.angle += l.dir * l.spd * dt;
             if (l.angle >= Math.max(l.from, l.to)) { l.angle = Math.max(l.from, l.to); l.dir = -1; } else if (l.angle <= Math.min(l.from, l.to)) { l.angle = Math.min(l.from, l.to); l.dir = 1; }
             const lvx = pcx - l.x, lvy = pcy - l.y, ld = Math.hypot(lvx, lvy);
@@ -1144,7 +1161,7 @@ export async function startGame() {
             const vx = pcx - (g.px + TILE / 2), vy = pcy - (g.py + TILE / 2), d = Math.hypot(vx, vy);
             const gt = GUARD_TYPES[g.type ?? 'guard'];
             const disguiseFactor = player.disguised && !player.carrying && !alarmOn && g.state !== 'alert' ? DISGUISE_SIGHT[g.type ?? 'guard'] : 1;
-            const sight = VIEW_DIST * gt.sight * diff().sight * disguiseFactor * (lockdown ? LOCKDOWN.sight : 1) * (mod('eagle_eyes') ? 1.3 : 1);
+            const sight = VIEW_DIST * gt.sight * diff().sight * disguiseFactor * (lockdown ? LOCKDOWN.sight : 1) * (mod('eagle_eyes') ? 1.3 : 1) * (powerOut() && g.state !== 'alert' ? POWER_SIGHT : 1);
             let inView = false;
             if (d < sight && !player.hidden) {
                 let ang = Math.atan2(vy, vx) - DIR_ANGLE[g.dir]; ang = Math.atan2(Math.sin(ang), Math.cos(ang));
@@ -1221,7 +1238,7 @@ export async function startGame() {
 
     // ---- draw ----------------------------------------------------------
     function blit(f, x, y) { ctx.drawImage(sprites.sheet, f.x * TILE, f.y * TILE, TILE, TILE, x, y, TILE, TILE); }
-    const fallbackColour = { [CHEST]: '#8a6a30', [CRACKED]: '#4a4a3a', [WALL]: '#444', [DOOR]: '#3a3', [KEY]: '#ff8800', [EXIT]: '#06f', [TREASURE]: '#dba51a', [HIDE]: '#8a6230', [PORTAL]: '#335', [SPIKES]: '#888', [TRIPWIRE]: '#666', [TRAPDOOR]: '#5a4020', [GAS]: '#3c4a3c', [CRUMBLE]: '#2a2a30', [PIT]: '#000' };
+    const fallbackColour = { [FUSE]: '#3a3f4a', [CHEST]: '#8a6a30', [CRACKED]: '#4a4a3a', [WALL]: '#444', [DOOR]: '#3a3', [KEY]: '#ff8800', [EXIT]: '#06f', [TREASURE]: '#dba51a', [HIDE]: '#8a6230', [PORTAL]: '#335', [SPIKES]: '#888', [TRIPWIRE]: '#666', [TRAPDOOR]: '#5a4020', [GAS]: '#3c4a3c', [CRUMBLE]: '#2a2a30', [PIT]: '#000' };
     function torches() { const out = []; for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === WALL && tileAt(x, y + 1) !== WALL && hash(x * 3 + levelIndex, y * 5) < 0.16 && hash(x * 11 + levelIndex, y * 17) <= 0.84) out.push([x, y]); return out; }
     let torchCache = null, torchLevel = -1;
 
@@ -1278,11 +1295,12 @@ export async function startGame() {
     }
     function drawCone(g) {
         const cx = g.px + TILE / 2, cy = g.py + TILE / 2, a = DIR_ANGLE[g.dir];
-        const grad = ctx.createRadialGradient(cx, cy, 8, cx, cy, VIEW_DIST);
+        const reach = VIEW_DIST * (powerOut() && g.state !== 'alert' ? POWER_SIGHT : 1);
+        const grad = ctx.createRadialGradient(cx, cy, 8, cx, cy, reach);
         if (g.state === 'alert') { grad.addColorStop(0, 'rgba(255,50,50,0.30)'); grad.addColorStop(1, 'rgba(255,50,50,0.02)'); }
         else if (g.state === 'suspicious') { grad.addColorStop(0, 'rgba(255,200,60,0.28)'); grad.addColorStop(1, 'rgba(255,200,60,0.02)'); }
         else { grad.addColorStop(0, 'rgba(255,230,120,0.22)'); grad.addColorStop(1, 'rgba(255,230,120,0.0)'); }
-        ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, VIEW_DIST, a - VIEW_FOV / 2, a + VIEW_FOV / 2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, reach, a - VIEW_FOV / 2, a + VIEW_FOV / 2); ctx.closePath(); ctx.fill();
     }
     function drawLighting() {
         lctx.globalCompositeOperation = 'source-over';
@@ -1290,10 +1308,10 @@ export async function startGame() {
         lctx.globalCompositeOperation = 'destination-out';
         const hole = (x, y, r, inner = 0.9) => { const gr = lctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${inner})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); lctx.fillStyle = gr; lctx.beginPath(); lctx.arc(x, y, r, 0, Math.PI * 2); lctx.fill(); };
         hole(player.px + 16, player.py + 16, mod('fog') ? 80 : player.hidden ? 90 : 150, 0.95);
-        for (const [x, y] of torchCache ?? []) hole(x * TILE + 16, y * TILE + 20, 80 + Math.sin(time * 9 + x) * 4, 0.7);
+        for (const [x, y] of torchCache ?? []) hole(x * TILE + 16, y * TILE + 20, powerOut() ? 26 : 80 + Math.sin(time * 9 + x) * 4, powerOut() ? 0.35 : 0.7);
         for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) { const t = map[y][x]; if (t === EXIT) hole(x * TILE + 16, y * TILE + 16, 70, 0.8); else if (t === TREASURE || t === KEY) hole(x * TILE + 16, y * TILE + 16, 34, 0.5); else if (t === PORTAL) hole(x * TILE + 16, y * TILE + 16, 50, 0.6); else if (t === GAS && gasActive(x, y)) hole(x * TILE + 16, y * TILE + 16, 50, 0.5); }
         for (const b of blades) hole(b.px + 16, b.py + 16, 30, 0.5);
-        for (const l of lights) { if (l.broken) continue; lctx.fillStyle = 'rgba(0,0,0,0.6)'; lctx.beginPath(); lctx.moveTo(l.x, l.y); lctx.arc(l.x, l.y, LIGHT_RANGE * 0.95, l.angle - LIGHT_HALF, l.angle + LIGHT_HALF); lctx.closePath(); lctx.fill(); hole(l.x, l.y, 36, 0.7); }
+        for (const l of lights) { if (l.broken || powerOut()) continue; lctx.fillStyle = 'rgba(0,0,0,0.6)'; lctx.beginPath(); lctx.moveTo(l.x, l.y); lctx.arc(l.x, l.y, LIGHT_RANGE * 0.95, l.angle - LIGHT_HALF, l.angle + LIGHT_HALF); lctx.closePath(); lctx.fill(); hole(l.x, l.y, 36, 0.7); }
         if (muzzle > 0) hole(player.px + 16, player.py + 16, 220, 0.9);
         for (const b of bullets) hole(b.x, b.y, 24, 0.6);
         for (const b of enemyBullets) hole(b.x, b.y, 24, 0.6);
@@ -1360,7 +1378,7 @@ export async function startGame() {
             for (let ty = 0; ty < mh; ty++) for (let tx = 0; tx < mw; tx++) {
                 const t = m[ty][tx]; let col = '#1c1c22';
                 if (!known) col = t === WALL ? '#202026' : '#141418';
-                else if (t === WALL) col = '#5e5e68'; else if (t === CRACKED) col = '#4a4a3a'; else if (t === CHEST) col = '#8a6a30'; else if (t === DOOR) col = '#8a6230'; else if (t === KEY) col = '#ffd23a'; else if (t === EXIT) col = '#3a64a8'; else if (t === TREASURE) col = '#e8c33a'; else if (t === HIDE) col = '#6b4a24'; else if (t === PORTAL) col = '#a070ff'; else if (t === SPIKES || t === TRIPWIRE || t === GAS) col = '#8a3a3a'; else if (t === TRAPDOOR || t === PIT) col = '#0a0a0c'; else if (t === CRUMBLE) col = '#33333a'; else if (t === PLANS) col = '#fff3a8'; else if (t === PRISONER) col = '#9fffa0'; else if (t === GUN || t === AMMO) col = '#bbbbcc';
+                else if (t === WALL) col = '#5e5e68'; else if (t === CRACKED) col = '#4a4a3a'; else if (t === CHEST) col = '#8a6a30'; else if (t === FUSE) col = '#cfe6ff'; else if (t === DOOR) col = '#8a6230'; else if (t === KEY) col = '#ffd23a'; else if (t === EXIT) col = '#3a64a8'; else if (t === TREASURE) col = '#e8c33a'; else if (t === HIDE) col = '#6b4a24'; else if (t === PORTAL) col = '#a070ff'; else if (t === SPIKES || t === TRIPWIRE || t === GAS) col = '#8a3a3a'; else if (t === TRAPDOOR || t === PIT) col = '#0a0a0c'; else if (t === CRUMBLE) col = '#33333a'; else if (t === PLANS) col = '#fff3a8'; else if (t === PRISONER) col = '#9fffa0'; else if (t === GUN || t === AMMO) col = '#bbbbcc';
                 c.fillStyle = col; c.fillRect(x + tx * s, y + ty * s, Math.ceil(s), Math.ceil(s));
             }
             if (i === 0) { c.fillStyle = lockdown ? '#ffe066' : '#8a8a96'; c.fillRect(x + l.player_start[0] * s - 1, y + l.player_start[1] * s - 1, Math.ceil(s) + 2, Math.ceil(s) + 2); }
@@ -1381,7 +1399,7 @@ export async function startGame() {
         for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === GAS && gasActive(x, y)) { const cx = x * TILE + 16, cy = y * TILE + 16; const gr = ctx.createRadialGradient(cx, cy, 4, cx, cy, GAS_RADIUS + Math.sin(time * 6) * 4); gr.addColorStop(0, 'rgba(120,220,90,0.45)'); gr.addColorStop(1, 'rgba(120,220,90,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(cx, cy, GAS_RADIUS + 6, 0, Math.PI * 2); ctx.fill(); }
         // searchlights
         for (const l of lights) {
-            if (!l.broken) {
+            if (!l.broken && !powerOut()) {
                 const hot = l.notice > 0;
                 const grad = ctx.createRadialGradient(l.x, l.y, 6, l.x, l.y, LIGHT_RANGE);
                 grad.addColorStop(0, hot ? 'rgba(255,120,100,0.45)' : 'rgba(210,235,255,0.40)'); grad.addColorStop(1, hot ? 'rgba(255,120,100,0.04)' : 'rgba(210,235,255,0.03)');
@@ -1412,6 +1430,7 @@ export async function startGame() {
             ctx.fillStyle = '#3a3a30'; ctx.fillRect(x - 3, y - 6, 6, 9); ctx.fillStyle = '#5a4a2a'; ctx.fillRect(x - 1.5, y - 12, 3, 7);
             if (k >= 1) { ctx.fillStyle = (Math.floor(time * (gr.fuse < 0.4 ? 20 : 8)) % 2) ? '#ff4040' : '#ffd080'; ctx.fillRect(x - 1.5, y - 14, 3, 3); }
         }
+        if (powerOut()) { const left = powerOutUntil - time, w = TILE * 3, x = VW / 2 - w / 2; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x, 6, w, 5); ctx.fillStyle = '#cfe6ff'; ctx.fillRect(x, 6, w * left / POWER_OUT, 5); ctx.fillStyle = '#cfe6ff'; ctx.font = '12px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText(`POWER OUT ${Math.ceil(left)}s`, VW / 2, 22); ctx.textAlign = 'left'; }
         if (chestTimer > 0 && chestAt) { const w = TILE * 1.4, x = player.px + 16 - w / 2, y = player.py - 10; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x, y, w, 5); ctx.fillStyle = '#ffd080'; ctx.fillRect(x, y, w * Math.min(1, chestTimer / CHEST_TIME), 5); }
         for (const st of stones) { const k = st.t / st.dur; const x = st.x0 + (st.x1 - st.x0) * k, y = st.y0 + (st.y1 - st.y0) * k - Math.sin(k * Math.PI) * 26; ctx.fillStyle = '#c8c8c8'; ctx.fillRect(x - 2, y - 2, 4, 4); }
         { const nb = nearBody(); const label = pickpocketTarget() ? 'E: lift the combination' : nearBody()?.type === 'officer' && needsCode() ? 'E: search the officer' : player.carrying ? (tileAt(player.x, player.y) === HIDE ? 'E: hide body in crates' : 'E: drop body') : nb ? (canStrip(nb) ? 'E: take uniform' : 'E: pick up body') : null; if (label && phase === 'playing') { ctx.fillStyle = '#9fd0ff'; ctx.font = '16px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText(label, player.px + 16, player.py - 10); ctx.textAlign = 'left'; } }
@@ -1529,7 +1548,7 @@ export async function startGame() {
     // Debug hook for automated checks: only when the page is opened with ?debug=1
     if (new URLSearchParams(location.search).has('debug')) {
         window.__woolfie = {
-            state: () => ({ phase, levelIndex, guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), code: player.code, guardPos: guards.map((g) => [Math.round(g.px), Math.round(g.py), g.dir, g.type]), lights: lights.map((l) => ({ broken: l.broken, notice: +l.notice.toFixed(2), angle: +l.angle.toFixed(2), tx: l.tx, ty: l.ty })), stars: [...roomStars.entries()], says: guards.map((g) => (g.say && g.say.until > time ? g.say.text : null)), notice: guards.map((g) => +(g.notice ?? 0).toFixed(2)), assist: assistOn(), hasKey: player.hasKey, user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
+            state: () => ({ phase, levelIndex, powerOut: powerOut(), powerLeft: Math.max(0, +(powerOutUntil - time).toFixed(1)), guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), code: player.code, guardPos: guards.map((g) => [Math.round(g.px), Math.round(g.py), g.dir, g.type]), lights: lights.map((l) => ({ broken: l.broken, notice: +l.notice.toFixed(2), angle: +l.angle.toFixed(2), tx: l.tx, ty: l.ty })), stars: [...roomStars.entries()], says: guards.map((g) => (g.say && g.say.until > time ? g.say.text : null)), notice: guards.map((g) => +(g.notice ?? 0).toFixed(2)), assist: assistOn(), hasKey: player.hasKey, user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
             givePistol: () => { player.gun = true; player.ammo = GUN_AMMO; }, fire, raiseAlarm, markObjective,
             teleport: (x, y) => { player.x = x; player.y = y; player.px = x * TILE; player.py = y * TILE; lastTile = [x, y]; },
             face: (d) => { player.dir = d; }, resumeCampaign, saveCampaign, setDifficulty: (d) => { difficulty = d; }, alertAll: alertAllGuards, throwStone, takeUniform, interact, throwGrenade, explode, giveGrenades: (n) => { player.grenades = n; }, startDaily: () => startCampaign({ dailyRun: true }), goBack: goBackUpstairs, pickPlans: () => { lockdown = true; markObjective('plans'); }, markPlans: () => doneSet(levels.findIndex((l) => (l.objectives ?? []).some((o) => o.id === 'plans'))).add('plans'), addBody: (x, y) => bodies.push({ px: x * TILE, py: y * TILE, dir: 'down', type: 'guard', born: time - 1 }), killGuard: (i) => { const g = guards.splice(i, 1)[0]; bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time - 1 }); },

@@ -66,6 +66,9 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
 - **Searchlights** sweep between two directions in some rooms. Stay in the
   beam for more than a moment and the alarm sounds. Cross while it is turned
   away, shoot the lamp out, blow it up, or walk through wearing a uniform.
+- **Fuse boxes** cut a room's power for twelve seconds when you step on
+  one. Searchlights and torches go dark and guards see only a little way,
+  but the nearest guard walks over to find out who did it.
 - **Supply chests** take a few seconds to open while you stand still and
   exposed. They hold grenades, a bulletproof vest that stops one shot, ammo
   or stones.
@@ -152,6 +155,7 @@ a-z portal: the same letter in two rooms links them both ways
 S  spike plate   T  tripwire   X  trapdoor   G  gas vent   C  crumbling floor
 W  war plans (required objective)   U  pistol   A  ammo box   R  prisoner cell
 B  supply chest   Z  cracked wall (solid until a grenade opens it)
+F  fuse box (step on it to black the room out)
 ```
 
 Objectives are derived from the tiles, so a room with an `R` automatically

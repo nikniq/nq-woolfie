@@ -59,6 +59,9 @@ class Level extends Model
     /** Cracked wall: solid until a grenade blows it open. */
     public const TILE_CRACKED = 19;
 
+    /** Fuse box: stepping on it cuts the room's power, so searchlights go dark and guards see less. */
+    public const TILE_FUSE = 20;
+
     protected $fillable = ['number', 'name', 'map', 'player_start', 'guards', 'portals', 'traps', 'objectives', 'castle_x', 'castle_y', 'custom'];
 
     protected function casts(): array

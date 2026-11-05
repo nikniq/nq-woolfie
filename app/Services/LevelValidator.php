@@ -12,7 +12,7 @@ use App\Models\Level;
  */
 class LevelValidator
 {
-    public const PICKUPS = [Level::TILE_TREASURE, Level::TILE_PLANS, Level::TILE_PRISONER, Level::TILE_GUN, Level::TILE_AMMO, Level::TILE_CHEST];
+    public const PICKUPS = [Level::TILE_TREASURE, Level::TILE_PLANS, Level::TILE_PRISONER, Level::TILE_GUN, Level::TILE_AMMO, Level::TILE_CHEST, Level::TILE_FUSE];
 
     /**
      * @param  int[][]  $map

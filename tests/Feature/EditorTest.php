@@ -115,6 +115,22 @@ class EditorTest extends TestCase
         $this->assertSame([['type' => 'light', 'spd' => 35, 'from' => 0, 'to' => 90, 'at' => [2, 1]]], $level->fresh()->traps);
     }
 
+    public function test_fuse_box_tile_is_saved_when_reachable_and_rejected_when_walled_in(): void
+    {
+        $level = Level::where('number', 1)->firstOrFail();
+        $payload = $this->payloadFor($level);
+        $payload['map'][1][2] = Level::TILE_FUSE;
+
+        $this->withSession(['editor_ok' => true])->putJson("/editor/{$level->id}", $payload)->assertOk();
+        $this->assertSame(Level::TILE_FUSE, $level->fresh()->map[1][2]);
+
+        $payload['map'][1][2] = Level::TILE_FLOOR;
+        $payload['map'][0][0] = Level::TILE_FUSE;
+        $this->withSession(['editor_ok' => true])->putJson("/editor/{$level->id}", $payload)
+            ->assertUnprocessable()
+            ->assertJsonFragment(['Room: pickup at (0,0) is unreachable']);
+    }
+
     private function payloadFor(Level $level): array
     {
         return [
