@@ -526,7 +526,7 @@ export async function startGame() {
     function saveCampaign() {
         try {
             if (phase !== 'dead') saveState(); // a death has already decided what the room keeps
-            const snapshot = { v: 1, campaignId, difficulty, score, lives, levelIndex, kills, completed: [...completed], visited: [...visited], objectivesDone: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), levelStates: [...levelStates.entries()], gun: player.gun, ammo: player.ammo, stones: player.stones, disguised: player.disguised, roomStars: [...roomStars.entries()], lockdown, stats, grenades: player.grenades, vest: player.vest, code: player.code, dailyDate, mods: [...mods], savedAt: Date.now() };
+            const snapshot = { v: 2, campaignId, difficulty, score, lives, levelIndex, kills, completed: [...completed], visited: [...visited], objectivesDone: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), levelStates: [...levelStates.entries()], gun: player.gun, ammo: player.ammo, stones: player.stones, disguised: player.disguised, roomStars: [...roomStars.entries()], lockdown, stats, grenades: player.grenades, vest: player.vest, code: player.code, dailyDate, mods: [...mods], savedAt: Date.now() };
             localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot));
             hasSave = true;
             pushSave(snapshot);
@@ -535,7 +535,7 @@ export async function startGame() {
     function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch {} hasSave = false; if (api.save) { clearTimeout(pushTimer); fetch(api.save, { method: 'DELETE', headers: serverHeaders() }).catch(() => {}); } }
     function resumeCampaign() {
         let d = null; try { d = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch {}
-        if (!d || d.v !== 1 || d.levelIndex >= levels.length) { clearSave(); return false; }
+        if (!d || d.v !== 2 || d.levelIndex >= levels.length) { clearSave(); return false; }
         ensureAudio();
         campaignId = d.campaignId; difficulty = DIFFICULTY[d.difficulty] ? d.difficulty : 'normal'; score = d.score; lives = d.lives; kills = d.kills ?? 0;
         completed = new Set(d.completed); visited = new Set(d.visited); objectivesDone = new Map(d.objectivesDone.map(([k, v]) => [k, new Set(v)]));

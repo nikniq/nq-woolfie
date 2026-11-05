@@ -64,7 +64,7 @@ class EditorTest extends TestCase
     {
         $level = Level::where('number', 1)->firstOrFail();
         $payload = $this->payloadFor($level);
-        $payload['number'] = 9;
+        $payload['number'] = 13;
         $payload['name'] = 'Oubliette';
         foreach ($level->portals as $copied) {
             $payload['map'][$copied['y']][$copied['x']] = Level::TILE_FLOOR;
@@ -74,22 +74,22 @@ class EditorTest extends TestCase
 
         $this->withSession(['editor_ok' => true])->postJson('/editor', $payload)
             ->assertStatus(422)
-            ->assertJsonFragment(["Portal 'z' must appear in exactly two different rooms (found in: 9)"]);
+            ->assertJsonFragment(["Portal 'z' must appear in exactly two different rooms (found in: 13)"]);
 
-        // pairing with the Keep's orphaned letter would need that room to have it; use letter 'a' which already pairs 2<->4
-        $payload['portals'] = [['id' => 'a', 'x' => 2, 'y' => 1]];
+        // letter 'b' already pairs rooms 3 and 5, so a third room cannot use it
+        $payload['portals'] = [['id' => 'b', 'x' => 2, 'y' => 1]];
         $this->withSession(['editor_ok' => true])->postJson('/editor', $payload)->assertStatus(422);
 
         $payload['map'][1][2] = Level::TILE_FLOOR;
         $payload['portals'] = [];
         $this->withSession(['editor_ok' => true])->postJson('/editor', $payload)->assertOk();
-        $this->assertDatabaseHas('levels', ['number' => 9, 'name' => 'Oubliette', 'custom' => true]);
-        $this->getJson('/api/levels')->assertJsonCount(9, 'data');
+        $this->assertDatabaseHas('levels', ['number' => 13, 'name' => 'Oubliette', 'custom' => true]);
+        $this->getJson('/api/levels')->assertJsonCount(13, 'data');
     }
 
     public function test_room_with_the_war_plans_is_rejected_without_an_officer(): void
     {
-        $level = Level::where('number', 8)->firstOrFail();
+        $level = Level::where('name', 'The War Room')->firstOrFail();
         $payload = $this->payloadFor($level);
         $payload['guards'] = array_map(fn (array $guard): array => ['type' => 'guard'] + $guard, $payload['guards']);
 

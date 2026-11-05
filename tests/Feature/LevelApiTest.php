@@ -17,8 +17,8 @@ class LevelApiTest extends TestCase
 
         $response = $this->getJson('/api/levels');
 
-        $response->assertOk()->assertJsonCount(8, 'data');
-        $this->assertSame([1, 2, 3, 4, 5, 6, 7, 8], array_column($response->json('data'), 'number'));
+        $response->assertOk()->assertJsonCount(12, 'data');
+        $this->assertSame(range(1, 12), array_column($response->json('data'), 'number'));
 
         foreach ($response->json('data') as $level) {
             $flat = array_merge(...$level['map']);
@@ -44,6 +44,20 @@ class LevelApiTest extends TestCase
     {
         $this->seed(LevelSeeder::class);
 
-        $this->get('/')->assertOk()->assertSee('id="game"', false)->assertSee('/ 8');
+        $this->get('/')->assertOk()->assertSee('id="game"', false)->assertSee('/ 12');
+    }
+
+    public function test_reseeding_moves_a_renumbered_room_without_replacing_its_row(): void
+    {
+        $this->seed(LevelSeeder::class);
+        $warRoom = Level::where('name', 'The War Room')->firstOrFail();
+        Level::where('number', 8)->delete();
+        $warRoom->update(['number' => 8]);
+
+        $this->seed(LevelSeeder::class);
+
+        $this->assertSame(12, $warRoom->fresh()->number);
+        $this->assertSame('The Crypt', Level::where('number', 8)->firstOrFail()->name);
+        $this->assertSame(12, Level::count());
     }
 }

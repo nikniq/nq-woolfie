@@ -31,8 +31,9 @@ Then open http://127.0.0.1:8000.
 
 ## How to play
 
-The eight maps are rooms of one castle: the Cellar, Barracks, Armoury,
-Chapel, Keep, Dungeon, Library and War Room. Your mission: steal the war
+The twelve maps are rooms of one castle: the Cellar, Barracks, Armoury,
+Chapel, Keep, Dungeon, Library, Crypt, Kitchens, Gallery, Guard Tower and
+War Room. The first two rooms are gentle: one or two slow guards and no traps. Your mission: steal the war
 plans from the War Room, then get back out through the gate you came in by. Each room
 has a key that unlocks its doors, gold to loot, and stairs down to the next
 room. Stairs work both ways: the tile you arrive on leads back up. Stone
