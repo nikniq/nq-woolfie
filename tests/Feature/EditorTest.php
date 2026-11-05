@@ -66,6 +66,9 @@ class EditorTest extends TestCase
         $payload = $this->payloadFor($level);
         $payload['number'] = 9;
         $payload['name'] = 'Oubliette';
+        foreach ($level->portals as $copied) {
+            $payload['map'][$copied['y']][$copied['x']] = Level::TILE_FLOOR;
+        }
         $payload['map'][1][2] = Level::TILE_PORTAL;
         $payload['portals'] = [['id' => 'z', 'x' => 2, 'y' => 1]];
 
@@ -81,7 +84,7 @@ class EditorTest extends TestCase
         $payload['portals'] = [];
         $this->withSession(['editor_ok' => true])->postJson('/editor', $payload)->assertOk();
         $this->assertDatabaseHas('levels', ['number' => 9, 'name' => 'Oubliette', 'custom' => true]);
-        $this->getJson('/api/levels')->assertJsonCount(6, 'data');
+        $this->getJson('/api/levels')->assertJsonCount(9, 'data');
     }
 
     private function payloadFor(Level $level): array
