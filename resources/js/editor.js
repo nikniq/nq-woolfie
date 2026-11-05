@@ -23,7 +23,9 @@ export function startEditor() {
     let start = level.player_start.slice();
     let guards = (level.guards ?? []).map((g) => ({ patrol: g.patrol.map((p) => p.slice()), spd: g.spd, type: g.type ?? 'guard' }));
     let blades = (level.traps ?? []).filter((t) => t.type === 'blade').map((t) => ({ type: 'blade', from: t.from.slice(), to: t.to.slice(), spd: t.spd }));
-    let otherTraps = (level.traps ?? []).filter((t) => t.type !== 'blade'); // searchlights: kept as-is, shown as markers
+    let lights = (level.traps ?? []).filter((t) => t.type === 'light').map((t) => ({ type: 'light', at: t.at.slice(), from: +t.from, to: +t.to, spd: +t.spd }));
+    let otherTraps = (level.traps ?? []).filter((t) => t.type !== 'blade' && t.type !== 'light'); // unknown trap types are passed through untouched
+    let selectedLight = -1;
     let portals = (level.portals ?? []).map((p) => ({ id: p.id, x: p.x, y: p.y }));
     let tool = { kind: 'tile', tile: 1 };
     let selectedGuard = -1, selectedBlade = -1, bladeEnd = 0;
@@ -37,13 +39,13 @@ export function startEditor() {
     for (const [id, name, col] of TILES) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'pal'; b.dataset.tile = id;
         b.innerHTML = `<span class="sw" style="background:${col}"></span>${name}`;
-        b.onclick = () => { tool = { kind: 'tile', tile: id }; selectedGuard = -1; selectedBlade = -1; refresh(); };
+        b.onclick = () => { tool = { kind: 'tile', tile: id }; selectedGuard = -1; selectedBlade = -1; selectedLight = -1; refresh(); };
         tilesEl.appendChild(b);
     }
     const toolsEl = $('edTools');
     for (const [kind, name] of [['start', 'Player start'], ['erase', 'Erase (floor)']]) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'pal'; b.dataset.kind = kind; b.textContent = name;
-        b.onclick = () => { tool = { kind }; selectedGuard = -1; selectedBlade = -1; refresh(); };
+        b.onclick = () => { tool = { kind }; selectedGuard = -1; selectedBlade = -1; selectedLight = -1; refresh(); };
         toolsEl.appendChild(b);
     }
 
@@ -58,12 +60,28 @@ export function startEditor() {
                 <button type="button" class="undo" title="remove last point">↶</button>
                 <button type="button" class="del" title="delete guard">✕</button>`;
             row.querySelector('select').value = g.type;
-            row.querySelector('.pick').onclick = () => { selectedGuard = i; selectedBlade = -1; tool = { kind: 'guard' }; refresh(); };
+            row.querySelector('.pick').onclick = () => { selectedGuard = i; selectedBlade = -1; selectedLight = -1; tool = { kind: 'guard' }; refresh(); };
             row.querySelector('select').onchange = (e) => { g.type = e.target.value; };
             row.querySelector('input').onchange = (e) => { g.spd = parseFloat(e.target.value) || 1; };
             row.querySelector('.undo').onclick = () => { g.patrol.pop(); refresh(); };
             row.querySelector('.del').onclick = () => { guards.splice(i, 1); selectedGuard = -1; refresh(); };
             gEl.appendChild(row);
+        });
+        const lEl = $('edLights'); lEl.innerHTML = '';
+        lights.forEach((l, i) => {
+            const row = document.createElement('div'); row.className = 'row' + (selectedLight === i ? ' sel' : '');
+            row.innerHTML = `<button type="button" class="pick">#${i + 1}</button>
+                <label>from <input type="number" class="from" step="15" min="-360" max="360" value="${l.from}" title="start angle in degrees (0 = right, 90 = down)"></label>
+                <label>to <input type="number" class="to" step="15" min="-360" max="360" value="${l.to}" title="end angle in degrees"></label>
+                <label>speed <input type="number" class="spd" step="5" min="5" max="180" value="${l.spd}" title="degrees per second"></label>
+                <span class="pts">at (${l.at})</span>
+                <button type="button" class="del" title="delete searchlight">✕</button>`;
+            row.querySelector('.pick').onclick = () => { selectedLight = i; selectedGuard = -1; selectedBlade = -1; tool = { kind: 'light' }; refresh(); };
+            row.querySelector('.from').onchange = (e) => { l.from = +e.target.value || 0; draw(); };
+            row.querySelector('.to').onchange = (e) => { l.to = +e.target.value || 0; draw(); };
+            row.querySelector('.spd').onchange = (e) => { l.spd = Math.max(5, +e.target.value || 35); };
+            row.querySelector('.del').onclick = () => { lights.splice(i, 1); selectedLight = -1; refresh(); };
+            lEl.appendChild(row);
         });
         const bEl = $('edBlades'); bEl.innerHTML = '';
         blades.forEach((b, i) => {
@@ -80,11 +98,13 @@ export function startEditor() {
         document.querySelectorAll('#edTiles .pal').forEach((b) => b.classList.toggle('sel', tool.kind === 'tile' && +b.dataset.tile === tool.tile));
         document.querySelectorAll('#edTools .pal').forEach((b) => b.classList.toggle('sel', tool.kind === b.dataset.kind));
         $('edHint').textContent = tool.kind === 'guard' ? `Guard #${selectedGuard + 1}: click tiles to append patrol points. Legs must be straight and walkable.`
+            : tool.kind === 'light' ? `Searchlight #${selectedLight + 1}: click an open tile to stand the lamp on. It sweeps between the two angles (0 = right, 90 = down).`
             : tool.kind === 'blade' ? `Blade #${selectedBlade + 1}: click the ${bladeEnd === 0 ? 'start' : 'end'} tile.`
             : tool.kind === 'start' ? 'Click a floor tile to place the player start.'
             : 'Left-click or drag to paint the selected tile. Right-click paints floor. Portal tiles ask for a letter shared with the other room.';
     }
     $('edAddGuard').onclick = () => { guards.push({ patrol: [], spd: 1.2, type: 'guard' }); selectedGuard = guards.length - 1; selectedBlade = -1; tool = { kind: 'guard' }; refresh(); };
+    $('edAddLight').onclick = () => { lights.push({ type: 'light', at: [start[0], start[1]], from: 0, to: 90, spd: 35 }); selectedLight = lights.length - 1; selectedGuard = -1; selectedBlade = -1; tool = { kind: 'light' }; refresh(); };
     $('edAddBlade').onclick = () => { blades.push({ type: 'blade', from: [1, 1], to: [1, 1], spd: 2 }); selectedBlade = blades.length - 1; selectedGuard = -1; bladeEnd = 0; tool = { kind: 'blade' }; refresh(); };
 
     // ---- canvas ----------------------------------------------------------
@@ -109,7 +129,7 @@ export function startEditor() {
             g.patrol.forEach((p, k) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(p[0] * CELL + CELL / 2, p[1] * CELL + CELL / 2, k === 0 ? 6 : 4, 0, Math.PI * 2); ctx.fill(); if (k === 0) { ctx.fillStyle = '#000'; ctx.font = 'bold 9px system-ui'; ctx.fillText(String(i + 1), p[0] * CELL + CELL / 2, p[1] * CELL + CELL / 2 + 1); } });
         });
         blades.forEach((b, i) => { ctx.strokeStyle = i === selectedBlade ? '#fff' : '#c8c8d4'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(b.from[0] * CELL + CELL / 2, b.from[1] * CELL + CELL / 2); ctx.lineTo(b.to[0] * CELL + CELL / 2, b.to[1] * CELL + CELL / 2); ctx.stroke(); ctx.setLineDash([]); });
-        for (const t of otherTraps) { if (t.type !== 'light') continue; const cx = t.at[0] * CELL + CELL / 2, cy = t.at[1] * CELL + CELL / 2; ctx.fillStyle = 'rgba(200,230,255,0.25)'; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, CELL * 3, t.from * Math.PI / 180, t.to * Math.PI / 180); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#cfe6ff'; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill(); }
+        lights.forEach((t, i) => { const cx = t.at[0] * CELL + CELL / 2, cy = t.at[1] * CELL + CELL / 2; ctx.fillStyle = 'rgba(200,230,255,0.25)'; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, CELL * 3, Math.min(t.from, t.to) * Math.PI / 180, Math.max(t.from, t.to) * Math.PI / 180); ctx.closePath(); ctx.fill(); ctx.fillStyle = i === selectedLight ? '#fff' : '#cfe6ff'; ctx.beginPath(); ctx.arc(cx, cy, i === selectedLight ? 7 : 5, 0, Math.PI * 2); ctx.fill(); });
         ctx.lineWidth = 1;
     }
     function refresh() { refreshLists(); draw(); }
@@ -133,6 +153,7 @@ export function startEditor() {
         else if (tool.kind === 'erase') paint(x, y, 0);
         else if (tool.kind === 'start') { if (map[y][x] !== 1 && map[y][x] !== 19) start = [x, y]; }
         else if (tool.kind === 'guard' && selectedGuard >= 0) guards[selectedGuard].patrol.push([x, y]);
+        else if (tool.kind === 'light' && selectedLight >= 0) { if (map[y][x] !== 1 && map[y][x] !== 19 && map[y][x] !== 2) lights[selectedLight].at = [x, y]; }
         else if (tool.kind === 'blade' && selectedBlade >= 0) { if (bladeEnd === 0) { blades[selectedBlade].from = [x, y]; bladeEnd = 1; } else { blades[selectedBlade].to = [x, y]; bladeEnd = 0; } }
         refresh();
     }
@@ -150,7 +171,7 @@ export function startEditor() {
     };
 
     // ---- save / play / export --------------------------------------------
-    const payload = () => ({ number: +$('edNumber').value, name: $('edName').value, map, player_start: start, guards, traps: [...blades, ...otherTraps], portals, castle_x: +$('edCastleX').value, castle_y: +$('edCastleY').value });
+    const payload = () => ({ number: +$('edNumber').value, name: $('edName').value, map, player_start: start, guards, traps: [...blades, ...lights, ...otherTraps], portals, castle_x: +$('edCastleX').value, castle_y: +$('edCastleY').value });
     const showErrors = (list) => { const el = $('edErrors'); el.hidden = !list.length; el.innerHTML = list.map((e) => `<div>✗ ${e}</div>`).join(''); };
     async function save() {
         $('edStatus').textContent = 'Saving…'; showErrors([]);
@@ -164,7 +185,7 @@ export function startEditor() {
     $('edSave').onclick = save;
     $('edPlay').onclick = async () => { const b = await save(); if (b) location.href = `${root.dataset.playUrl}?level=${b.number}`; };
     $('edExport').onclick = async () => { const text = JSON.stringify(payload(), null, 1); try { await navigator.clipboard.writeText(text); $('edStatus').textContent = 'Room JSON copied to the clipboard.'; } catch { prompt('Room JSON', text); } };
-    $('edImport').onclick = () => { const text = prompt('Paste room JSON'); if (!text) return; try { const d = JSON.parse(text); map = d.map; start = d.player_start; guards = d.guards ?? []; blades = (d.traps ?? []).filter((t) => t.type === 'blade'); otherTraps = (d.traps ?? []).filter((t) => t.type !== 'blade'); portals = d.portals ?? []; if (d.name) $('edName').value = d.name; $('edWidth').value = map[0].length; $('edHeight').value = map.length; refresh(); } catch (e) { showErrors([`Invalid JSON: ${e.message}`]); } };
+    $('edImport').onclick = () => { const text = prompt('Paste room JSON'); if (!text) return; try { const d = JSON.parse(text); map = d.map; start = d.player_start; guards = d.guards ?? []; blades = (d.traps ?? []).filter((t) => t.type === 'blade'); lights = (d.traps ?? []).filter((t) => t.type === 'light'); otherTraps = (d.traps ?? []).filter((t) => t.type !== 'blade' && t.type !== 'light'); portals = d.portals ?? []; if (d.name) $('edName').value = d.name; $('edWidth').value = map[0].length; $('edHeight').value = map.length; refresh(); } catch (e) { showErrors([`Invalid JSON: ${e.message}`]); } };
     $('edDelete')?.addEventListener('click', async () => { if (!confirm('Delete this room? Seeded rooms come back on the next seed; custom rooms are gone for good.')) return; const res = await fetch(root.dataset.deleteUrl, { method: 'DELETE', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf } }); if (res.ok) location.href = root.dataset.indexUrl; });
 
     refresh();

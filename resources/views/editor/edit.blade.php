@@ -33,6 +33,9 @@
             <h3>Blades</h3>
             <div id="edBlades"></div>
             <button type="button" id="edAddBlade">Add blade</button>
+            <h3>Searchlights</h3>
+            <div id="edLights"></div>
+            <button type="button" id="edAddLight">Add searchlight</button>
         </div>
         <div class="editor-stage">
             <canvas id="edCanvas"></canvas>

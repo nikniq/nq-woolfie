@@ -134,7 +134,7 @@ Controls:
 
 Set `EDITOR_PASSWORD` in `.env` and open `/editor`. The editor paints tile
 grids, places the player start, guards (with type, speed and patrol route),
-swinging blades and lettered portals, sets the room's castle position, and
+swinging blades, searchlights (position, sweep angles and speed) and lettered portals, sets the room's castle position, and
 saves to the database. Every save runs the same validation as the seeder and
 reports problems inline. "Save & play" opens the game in that room. Rooms
 saved from the editor are flagged custom and survive reseeds; delete one to

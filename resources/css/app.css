@@ -116,3 +116,4 @@ a.button{display:inline-block;padding:8px 12px;background:linear-gradient(#3a3a4
 #pauseMenu button{margin:0;font-size:17px}
 #pauseMenu label{display:flex;justify-content:space-between;align-items:center;gap:10px}
 #pauseMenu input[type=range]{flex:1}
+.editor-palette .row label{display:flex;align-items:center;gap:3px;font-size:14px;color:#999}

@@ -100,6 +100,21 @@ class EditorTest extends TestCase
         $this->assertFalse($level->fresh()->custom);
     }
 
+    public function test_searchlight_is_saved_on_an_open_tile_and_rejected_on_a_wall(): void
+    {
+        $level = Level::where('number', 1)->firstOrFail();
+        $payload = $this->payloadFor($level);
+        $light = ['type' => 'light', 'at' => [2, 1], 'from' => 0, 'to' => 90, 'spd' => 35];
+
+        $this->withSession(['editor_ok' => true])->putJson("/editor/{$level->id}", ['traps' => [['at' => [0, 0]] + $light]] + $payload)
+            ->assertUnprocessable()
+            ->assertJsonFragment(['Room: searchlight 0 at (0,0) must stand on an open tile']);
+        $this->assertSame([], $level->fresh()->traps);
+
+        $this->withSession(['editor_ok' => true])->putJson("/editor/{$level->id}", ['traps' => [$light]] + $payload)->assertOk();
+        $this->assertSame([['type' => 'light', 'spd' => 35, 'from' => 0, 'to' => 90, 'at' => [2, 1]]], $level->fresh()->traps);
+    }
+
     private function payloadFor(Level $level): array
     {
         return [
