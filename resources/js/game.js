@@ -8,6 +8,7 @@ const FLOOR = 0, WALL = 1, DOOR = 2, KEY = 3, EXIT = 4, TREASURE = 5, HIDE = 6, 
 const SPIKES = 8, TRIPWIRE = 9, TRAPDOOR = 10, GAS = 11, CRUMBLE = 12, PIT = 13;
 const PLANS = 14, GUN = 15, AMMO = 16, PRISONER = 17;
 const GUN_AMMO = 6, AMMO_BOX = 4, BULLET_SPEED = 10, SHOT_NOISE = 320, KILL_POINTS = 50;
+const KO_TIME = 25, KO_POINTS = 30, KO_REACH = 42; // seconds a knocked-out guard sleeps, points for it, and how close you must be
 const ALARM_TIME = 20, ALARM_CHASE = 2.5;
 const DIFFICULTY = {
     easy: { label: 'Easy', notice: 1.5, keepLoot: true, blurb: '5 lives, slow guards that never shoot, a guide arrow, and you keep your key and gold when caught', lives: 5, speed: 0.85, sight: 0.85, shoot: false, cooldown: 2.2, aim: 1.2, reinforcements: 1, alarmChase: 4 },
@@ -55,6 +56,7 @@ const HINTS = {
     safe: 'The plans are locked in a safe. An officer in this room carries the combination: press E just behind him to lift it, or search his body.',
     light: 'A searchlight sweeps ahead. Cross while the beam is turned away, shoot the lamp out, or walk through in a uniform.',
     fuse: 'A fuse box. Step on it to cut the power: searchlights and torches go dark and guards see less, but one comes to check.',
+    knockout: 'Creep up behind a guard and press E to knock him out without a sound. He wakes in a while unless you hide him behind crates.',
     chest: 'Stand still on a supply chest to open it. It takes a moment, so make sure no patrol is due.',
     grenade: 'G throws a grenade: it kills anything near the blast and blows cracked walls open.',
     vest: 'The vest soaks up one bullet. After that you are on your own.',
@@ -818,6 +820,7 @@ export async function startGame() {
             ['crates', () => tileNear([HIDE])],
             ['portal', () => tileNear([PORTAL], 3)],
             ['chest', () => tileNear([CHEST], 3)],
+            ['knockout', () => !!knockoutTarget()],
             ['fuse', () => tileNear([FUSE], 3)],
             ['light', () => lights.some((l) => !l.broken && Math.hypot(l.x - player.px - 16, l.y - player.py - 16) < TILE * 7)],
             ['stone', () => player.stones > 0 && guards.some((g) => g.state === 'calm' && Math.hypot(g.px - player.px, g.py - player.py) < TILE * 6)],
@@ -843,10 +846,39 @@ export async function startGame() {
         player.code = true; playSound('pickup'); popup('Combination!', player.px + 16, player.py - 8, '#fff3a8');
         message = 'You lift the safe combination from the officer\'s pocket.';
     }
+    // A guard you are standing right behind, who has not noticed you. Dogs cannot be knocked out.
+    function knockoutTarget() {
+        if (player.carrying) return null;
+        return guards.find((g) => {
+            if (g.type === 'dog' || g.state === 'alert' || Math.hypot(g.px - player.px, g.py - player.py) > KO_REACH) return false;
+            let a = Math.atan2(player.py - g.py, player.px - g.px) - DIR_ANGLE[g.dir]; a = Math.atan2(Math.sin(a), Math.cos(a));
+            return Math.abs(a) >= Math.PI * 0.6;
+        }) ?? null;
+    }
+    // Knocked-out guards are bodies that keep their guard, so they can wake up again.
+    function knockOut(g) {
+        guards.splice(guards.indexOf(g), 1);
+        bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time, guard: { ...g, say: null }, sleep: KO_TIME });
+        score += KO_POINTS; levelScore += KO_POINTS; stats.knockouts = (stats.knockouts || 0) + 1; playSound('hide'); shake = 0.1;
+        popup(`Knocked out +${KO_POINTS}`, g.px + 16, g.py - 6, '#9fd0ff');
+        message = 'Out cold. Hide him behind crates before he wakes or someone finds him.';
+    }
+    function wakeSleepers(dt) {
+        for (let i = bodies.length - 1; i >= 0; i--) {
+            const b = bodies[i]; if (!b.guard || b.hidden) continue;
+            b.sleep -= dt; if (b.sleep > 0) continue;
+            bodies.splice(i, 1);
+            const g = { ...b.guard, px: b.px, py: b.py, state: 'calm', notice: 0, aimTimer: 0, target: null };
+            guards.push(g); investigate(g, Math.floor((b.px + 16) / TILE), Math.floor((b.py + 16) / TILE));
+            g.say = { text: b.stripped ? 'My uniform!' : 'Ugh... my head!', until: time + 2.2 }; playSoundAt('huh', g.px);
+            if (b.stripped && player.disguised) { player.disguised = false; message = 'The guard woke up and missed his uniform. Your disguise is blown!'; }
+        }
+    }
     function interact() {
         if (phase !== 'playing') return;
         if (player.carrying) { dropBody(); return; }
         const officer = pickpocketTarget(); if (officer) { pickpocket(officer); return; }
+        const sleeper = knockoutTarget(); if (sleeper) { knockOut(sleeper); return; }
         const b = nearBody(); if (!b) return;
         if (b.type === 'officer' && needsCode()) { player.code = true; playSound('pickup'); popup('Combination!', player.px + 16, player.py - 8, '#fff3a8'); message = 'You find the safe combination in the officer\'s coat.'; return; }
         if (canStrip(b)) { takeUniform(); return; }
@@ -1113,6 +1145,7 @@ export async function startGame() {
         else if (atEntrance()) { if (!onPortal) { if (levelIndex === 0) { onPortal = true; escapeThroughGate(); if (phase !== 'playing') return; } else { goBackUpstairs(); return; } } }
         else if (here !== EXIT) onPortal = false;
 
+        wakeSleepers(dt);
         // ---- traps ----
         if (lastTile && (lastTile[0] !== player.x || lastTile[1] !== player.y)) {
             if (tileAt(lastTile[0], lastTile[1]) === CRUMBLE) { map[lastTile[1]][lastTile[0]] = PIT; playSound('crumble'); shake = 0.25; spawnParticles(lastTile[0] * TILE + 16, lastTile[1] * TILE + 16, 14, '#55555f', 50); message = 'The floor gave way behind you!'; }
@@ -1416,7 +1449,7 @@ export async function startGame() {
             ctx.fillStyle = '#444'; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill(); ctx.restore();
         }
         guards.forEach(drawCone);
-        for (const b of bodies) { if (b.hidden) { ctx.fillStyle = '#1a1a1e'; ctx.fillRect(b.px + 21, b.py + 23, 7, 4); ctx.fillStyle = '#3e4a36'; ctx.fillRect(b.px + 21, b.py + 19, 4, 4); continue; } const k = b.born === undefined ? 1 : Math.min(1, (time - b.born) / 0.35); ctx.save(); ctx.translate(b.px + 16, b.py + 16); ctx.rotate((Math.PI / 2) * k); ctx.globalAlpha = 0.85; ctx.fillStyle = 'rgba(120,10,10,0.5)'; ctx.beginPath(); ctx.ellipse(0, 4, 14, 8, 0, 0, Math.PI * 2); ctx.fill(); if (sprites.ready) { if (b.stripped) ctx.globalAlpha = 0.55; blit((sprites.frames[b.type] ?? sprites.frames.guard)[b.dir][0], -16, -16); } ctx.restore(); }
+        for (const b of bodies) { if (b.hidden) { ctx.fillStyle = '#1a1a1e'; ctx.fillRect(b.px + 21, b.py + 23, 7, 4); ctx.fillStyle = '#3e4a36'; ctx.fillRect(b.px + 21, b.py + 19, 4, 4); continue; } const k = b.born === undefined ? 1 : Math.min(1, (time - b.born) / 0.35); ctx.save(); ctx.translate(b.px + 16, b.py + 16); ctx.rotate((Math.PI / 2) * k); ctx.globalAlpha = 0.85; ctx.fillStyle = b.guard ? 'rgba(0,0,0,0.25)' : 'rgba(120,10,10,0.5)'; ctx.beginPath(); ctx.ellipse(0, 4, 14, 8, 0, 0, Math.PI * 2); ctx.fill(); if (sprites.ready) { if (b.stripped) ctx.globalAlpha = 0.55; blit((sprites.frames[b.type] ?? sprites.frames.guard)[b.dir][0], -16, -16); } ctx.restore(); }
         if (sprites.ready) {
             ctx.save(); ctx.globalAlpha = player.hidden ? 0.45 : 1;
             if (!player.alive && (phase === 'dead' || phase === 'gameover')) { const k = Math.min(1, (time - deathAt) / 0.4); ctx.translate(player.px + 16, player.py + 16); ctx.rotate(-(Math.PI / 2) * k); ctx.translate(-16, -16); blit(sprites.frames.player[player.dir][0], 0, 0); }
@@ -1431,6 +1464,7 @@ export async function startGame() {
             if (k >= 1) { ctx.fillStyle = (Math.floor(time * (gr.fuse < 0.4 ? 20 : 8)) % 2) ? '#ff4040' : '#ffd080'; ctx.fillRect(x - 1.5, y - 14, 3, 3); }
         }
         if (powerOut()) { const left = powerOutUntil - time, w = TILE * 3, x = VW / 2 - w / 2; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x, 6, w, 5); ctx.fillStyle = '#cfe6ff'; ctx.fillRect(x, 6, w * left / POWER_OUT, 5); ctx.fillStyle = '#cfe6ff'; ctx.font = '12px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText(`POWER OUT ${Math.ceil(left)}s`, VW / 2, 22); ctx.textAlign = 'left'; }
+        for (const b of bodies) { if (!b.guard || b.hidden) continue; ctx.fillStyle = b.sleep < 6 ? '#ffb060' : '#cfe6ff'; ctx.font = '12px VT323, monospace'; const bob = Math.sin(time * 3) * 2; ctx.fillText(b.sleep < 6 ? 'z!' : 'z z', b.px + 20, b.py + 2 + bob); }
         if (chestTimer > 0 && chestAt) { const w = TILE * 1.4, x = player.px + 16 - w / 2, y = player.py - 10; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x, y, w, 5); ctx.fillStyle = '#ffd080'; ctx.fillRect(x, y, w * Math.min(1, chestTimer / CHEST_TIME), 5); }
         for (const st of stones) { const k = st.t / st.dur; const x = st.x0 + (st.x1 - st.x0) * k, y = st.y0 + (st.y1 - st.y0) * k - Math.sin(k * Math.PI) * 26; ctx.fillStyle = '#c8c8c8'; ctx.fillRect(x - 2, y - 2, 4, 4); }
         { const nb = nearBody(); const label = pickpocketTarget() ? 'E: lift the combination' : nearBody()?.type === 'officer' && needsCode() ? 'E: search the officer' : player.carrying ? (tileAt(player.x, player.y) === HIDE ? 'E: hide body in crates' : 'E: drop body') : nb ? (canStrip(nb) ? 'E: take uniform' : 'E: pick up body') : null; if (label && phase === 'playing') { ctx.fillStyle = '#9fd0ff'; ctx.font = '16px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText(label, player.px + 16, player.py - 10); ctx.textAlign = 'left'; } }
@@ -1548,7 +1582,7 @@ export async function startGame() {
     // Debug hook for automated checks: only when the page is opened with ?debug=1
     if (new URLSearchParams(location.search).has('debug')) {
         window.__woolfie = {
-            state: () => ({ phase, levelIndex, powerOut: powerOut(), powerLeft: Math.max(0, +(powerOutUntil - time).toFixed(1)), guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), code: player.code, guardPos: guards.map((g) => [Math.round(g.px), Math.round(g.py), g.dir, g.type]), lights: lights.map((l) => ({ broken: l.broken, notice: +l.notice.toFixed(2), angle: +l.angle.toFixed(2), tx: l.tx, ty: l.ty })), stars: [...roomStars.entries()], says: guards.map((g) => (g.say && g.say.until > time ? g.say.text : null)), notice: guards.map((g) => +(g.notice ?? 0).toFixed(2)), assist: assistOn(), hasKey: player.hasKey, user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
+            state: () => ({ phase, levelIndex, sleepers: bodies.filter((b) => b.guard).map((b) => +b.sleep.toFixed(1)), score, powerOut: powerOut(), powerLeft: Math.max(0, +(powerOutUntil - time).toFixed(1)), guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), code: player.code, guardPos: guards.map((g) => [Math.round(g.px), Math.round(g.py), g.dir, g.type]), lights: lights.map((l) => ({ broken: l.broken, notice: +l.notice.toFixed(2), angle: +l.angle.toFixed(2), tx: l.tx, ty: l.ty })), stars: [...roomStars.entries()], says: guards.map((g) => (g.say && g.say.until > time ? g.say.text : null)), notice: guards.map((g) => +(g.notice ?? 0).toFixed(2)), assist: assistOn(), hasKey: player.hasKey, user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
             givePistol: () => { player.gun = true; player.ammo = GUN_AMMO; }, fire, raiseAlarm, markObjective,
             teleport: (x, y) => { player.x = x; player.y = y; player.px = x * TILE; player.py = y * TILE; lastTile = [x, y]; },
             face: (d) => { player.dir = d; }, resumeCampaign, saveCampaign, setDifficulty: (d) => { difficulty = d; }, alertAll: alertAllGuards, throwStone, takeUniform, interact, throwGrenade, explode, giveGrenades: (n) => { player.grenades = n; }, startDaily: () => startCampaign({ dailyRun: true }), goBack: goBackUpstairs, pickPlans: () => { lockdown = true; markObjective('plans'); }, markPlans: () => doneSet(levels.findIndex((l) => (l.objectives ?? []).some((o) => o.id === 'plans'))).add('plans'), addBody: (x, y) => bodies.push({ px: x * TILE, py: y * TILE, dir: 'down', type: 'guard', born: time - 1 }), killGuard: (i) => { const g = guards.splice(i, 1)[0]; bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time - 1 }); },

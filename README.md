@@ -57,6 +57,10 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
 - **Stones.** Press Q to throw a stone up to four tiles ahead; nearby guards
   go to look where it landed. You start with three and find one in each new
   room.
+- **Knockouts.** Creep up behind a guard and press E to knock him out
+  silently. It is not a kill, so the Pacifist achievement survives. He wakes
+  after 25 seconds unless you hide him behind crates. Dogs cannot be
+  knocked out.
 - **Bodies.** Press E over a body you have shot to take the uniform, and E
   again to carry it. Carrying is slow, you cannot fire, and any guard that
   sees you raises the alarm. Drop a body on crates to hide it for good.
