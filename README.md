@@ -118,7 +118,8 @@ Controls:
 - Shift (or a gamepad shoulder button): sprint. F, Ctrl, gamepad B or the red touch button: fire
 - Q or gamepad Y: throw a stone. G or gamepad LB: throw a grenade. E or gamepad X: take a uniform / carry a body
 - Space / Enter / tap / gamepad A: start, continue, resume
-- P or Esc: pause. M: castle map. R: restart the room
+- On phones: a virtual joystick, a Run toggle and action buttons appear under the game
+- P or Esc: pause, with a menu for restart, quit to title, the guide and volume. M: castle map. R: restart the room
 - Type a name in the HUD to appear on the leaderboard
 
 ## Designing rooms

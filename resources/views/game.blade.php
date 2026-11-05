@@ -12,15 +12,26 @@
      data-sounds='@json($sounds)'>
     <div id="stage">
         <canvas id="game" width="640" height="320"></canvas>
+        <div id="pauseMenu" hidden>
+            <h3>Paused</h3>
+            <button type="button" data-menu="resume">Resume</button>
+            <button type="button" data-menu="restart">Restart room</button>
+            <button type="button" data-menu="guide">Guide arrow: <span id="menuGuide">on</span></button>
+            <button type="button" data-menu="quit">Save &amp; quit to title</button>
+            <label>Effects <input type="range" id="volSfx" min="0" max="100" value="100"></label>
+            <label>Music <input type="range" id="volMusic" min="0" max="100" value="100"></label>
+            <p class="muted small">P or Esc resumes.</p>
+        </div>
         <div id="touch" aria-label="Touch controls">
-            <button type="button" data-dir="up" aria-label="Up">▲</button>
-            <button type="button" data-dir="left" aria-label="Left">◀</button>
-            <button type="button" data-dir="right" aria-label="Right">▶</button>
-            <button type="button" data-dir="down" aria-label="Down">▼</button>
-            <button type="button" data-action="fire" aria-label="Fire">●</button>
-            <button type="button" data-action="stone" aria-label="Throw stone">◌</button>
-            <button type="button" data-action="use" aria-label="Take uniform">E</button>
-            <button type="button" data-action="grenade" aria-label="Throw grenade">✸</button>
+            <div id="stick" aria-label="Move"><div id="knob"></div></div>
+            <div id="actions">
+                <button type="button" data-action="sprint" aria-label="Sprint" aria-pressed="false">Run</button>
+                <button type="button" data-action="use" aria-label="Use">E</button>
+                <button type="button" data-action="stone" aria-label="Throw stone">Stone</button>
+                <button type="button" data-action="grenade" aria-label="Throw grenade">Bomb</button>
+                <button type="button" data-action="fire" aria-label="Fire">Fire</button>
+                <button type="button" data-action="pause" aria-label="Pause">II</button>
+            </div>
         </div>
     </div>
     <div id="hud">

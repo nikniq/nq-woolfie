@@ -331,6 +331,8 @@ export async function startGame() {
     // replace the synthesised versions (the server lists them in data-sounds).
     // Names: alert, caught, pickup, treasure, door, win, gameover, hide, portal,
     // alarm, spikes, crumble, gas, fall, blade, step.
+    const volume = { sfx: 1, music: 1 };
+    try { const v = JSON.parse(localStorage.getItem('woolfie.volume') || '{}'); if (typeof v.sfx === 'number') volume.sfx = v.sfx; if (typeof v.music === 'number') volume.music = v.music; } catch {}
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let audioCtx = null, noiseBuf = null;
     const sampleFiles = {}; let samplesLoaded = false;
@@ -357,7 +359,7 @@ export async function startGame() {
     }
     let panX = null; // x position (map px) of the sound being played, for stereo placement
     const master = () => {
-        const g = audioCtx.createGain(); g.gain.value = 0.25;
+        const g = audioCtx.createGain(); g.gain.value = 0.25 * volume.sfx;
         if (panX !== null && audioCtx.createStereoPanner) { const p = audioCtx.createStereoPanner(); p.pan.value = Math.max(-0.85, Math.min(0.85, ((panX - VW / 2) / (VW / 2)) * 0.85)); g.connect(p); p.connect(audioCtx.destination); }
         else g.connect(audioCtx.destination);
         return g;
@@ -430,7 +432,7 @@ export async function startGame() {
         if (want && !music) startMusic();
         if (music) {
             const tense = alarmUntil > time || guards.some((g) => g.state === 'alert');
-            music.out.gain.setTargetAtTime(want ? (phase === 'playing' ? (tense ? 0.75 : 0.5) : 0.25) : 0, audioCtx.currentTime, 0.8);
+            music.out.gain.setTargetAtTime(want ? (phase === 'playing' ? (tense ? 0.75 : 0.5) : 0.25) * volume.music : 0, audioCtx.currentTime, 0.8);
             if (music.filt) music.filt.frequency.setTargetAtTime(tense ? 900 : 320, audioCtx.currentTime, 1.5);
             if (want && !sampleFiles.music && phase === 'playing' && time >= melodyNext) {
                 const scale = tense ? [220, 233, 261, 311, 349] : [110, 130.8, 146.8, 164.8, 196]; const f = scale[Math.floor(Math.random() * scale.length)];
@@ -872,12 +874,30 @@ export async function startGame() {
         if (phase === 'playing') { phase = mode; pausedAt = now(); }
         else if (phase === 'paused' || phase === 'map') { runStart += now() - pausedAt; phase = 'playing'; }
     }
+    const pauseMenu = document.getElementById('pauseMenu');
+    function quitToTitle() { if (phase !== 'paused') return; phase = 'playing'; saveCampaign(); loadLevel(startAt); phase = 'title'; }
+    if (pauseMenu) {
+        const sfx = document.getElementById('volSfx'), mus = document.getElementById('volMusic');
+        sfx.value = Math.round(volume.sfx * 100); mus.value = Math.round(volume.music * 100);
+        const storeVolume = () => { volume.sfx = sfx.value / 100; volume.music = mus.value / 100; try { localStorage.setItem('woolfie.volume', JSON.stringify(volume)); } catch {} };
+        sfx.addEventListener('input', storeVolume); mus.addEventListener('input', storeVolume);
+        sfx.addEventListener('change', () => playSound('pickup'));
+        pauseMenu.addEventListener('click', (e) => {
+            const action = e.target.closest('[data-menu]')?.dataset.menu; if (!action) return;
+            if (action === 'resume') togglePause();
+            else if (action === 'restart') restartLevel();
+            else if (action === 'guide') toggleAssist();
+            else if (action === 'quit') quitToTitle();
+            e.target.blur();
+        });
+    }
     function restartLevel() { if (phase === 'title') return; if (phase === 'playing' || phase === 'paused' || phase === 'map') score -= levelScore; levelStates.delete(levelIndex); loadLevel(levelIndex); }
 
     restartBtn.onclick = restartLevel;
     window.addEventListener('keydown', (e) => {
         if (e.target === nameInput) return;
         const k = e.key.toLowerCase();
+        if (e.target?.type === 'range' && k.startsWith('arrow')) return;
         keysPressed[k] = true;
         if (phase === 'title' && (k === '1' || k === '2' || k === '3')) { difficulty = ['easy', 'normal', 'hard'][+k - 1]; try { localStorage.setItem('woolfie.difficulty', difficulty); } catch {} return; }
         if (phase === 'title' && k === 'c' && hasSave) { resumeCampaign(); return; }
@@ -896,12 +916,24 @@ export async function startGame() {
     window.addEventListener('keyup', (e) => { keysPressed[e.key.toLowerCase()] = false; });
     canvas.addEventListener('pointerdown', () => { if (phase !== 'playing') advance(); });
     const dirKey = { up: 'arrowup', down: 'arrowdown', left: 'arrowleft', right: 'arrowright' };
-    document.querySelectorAll('#touch button').forEach((b) => {
-        const k = dirKey[b.dataset.dir];
-        const on = (e) => { e.preventDefault(); keysPressed[k] = true; if (phase !== 'playing') advance(); };
-        const off = (e) => { e.preventDefault(); keysPressed[k] = false; };
-        b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
-    });
+    // virtual joystick: drag from the centre; four-way with diagonals, like the keyboard
+    const stick = document.getElementById('stick'), knob = document.getElementById('knob');
+    let touchSprint = false;
+    function setStick(dx, dy) {
+        const dead = 0.28;
+        keysPressed.arrowleft = dx < -dead; keysPressed.arrowright = dx > dead; keysPressed.arrowup = dy < -dead; keysPressed.arrowdown = dy > dead;
+        keysPressed.shift = touchSprint && (Math.abs(dx) > dead || Math.abs(dy) > dead);
+        if (knob) knob.style.transform = `translate(${dx * 38}px, ${dy * 38}px)`;
+    }
+    if (stick) {
+        const move = (e) => { const r = stick.getBoundingClientRect(); let dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2), dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } setStick(dx, dy); };
+        stick.addEventListener('pointerdown', (e) => { e.preventDefault(); stick.setPointerCapture(e.pointerId); if (phase !== 'playing') advance(); move(e); });
+        stick.addEventListener('pointermove', (e) => { if (stick.hasPointerCapture(e.pointerId)) move(e); });
+        const end = (e) => { e.preventDefault(); setStick(0, 0); };
+        stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
+    }
+    document.querySelector('#touch [data-action=sprint]')?.addEventListener('pointerdown', (e) => { e.preventDefault(); touchSprint = !touchSprint; e.currentTarget.setAttribute('aria-pressed', String(touchSprint)); });
+    document.querySelector('#touch [data-action=pause]')?.addEventListener('pointerdown', (e) => { e.preventDefault(); togglePause(); });
     document.querySelector('#touch [data-action=fire]')?.addEventListener('pointerdown', (e) => { e.preventDefault(); if (phase !== 'playing') advance(); else fire(); });
     document.querySelector('#touch [data-action=stone]')?.addEventListener('pointerdown', (e) => { e.preventDefault(); throwStone(); });
     document.querySelector('#touch [data-action=grenade]')?.addEventListener('pointerdown', (e) => { e.preventDefault(); throwGrenade(); });
@@ -1411,7 +1443,8 @@ export async function startGame() {
 
         const lvl = levels[levelIndex];
         if (phase === 'title') overlay('Mini Castle Wolfenstein', ['Steal the war plans from the War Room, then escape back to the gate.', 'Guards investigate noises: throw stones (Q) to lure them away.', 'Take a fallen guard\'s uniform (E) to walk past the rest.', `Difficulty:  ${['easy', 'normal', 'hard'].map((d, i) => `${i + 1} ${d === difficulty ? '[' + DIFFICULTY[d].label + ']' : DIFFICULTY[d].label}`).join('   ')}`, `${diff().label}: ${diff().blurb}.`, ...(hasSave ? ['Press C to continue your saved campaign'] : []), ...(daily ? [`Press D for today's challenge: ${daily.title}`] : [])], 'Press Space or tap to start a new campaign', { castle: true });
-        else if (phase === 'paused') overlay('Paused', ['Press P or Space to resume']);
+        else if (phase === 'paused') { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, VW, VH); }
+        if (pauseMenu) { const show = phase === 'paused'; if (pauseMenu.hidden === show) pauseMenu.hidden = !show; if (show) document.getElementById('menuGuide').textContent = assistOn() ? 'on' : 'off'; }
         else if (phase === 'map') { ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, VW, VH); drawCastle(ctx, VW, VH, true); ctx.fillStyle = '#ffe066'; ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('The castle — press M to return', VW / 2, VH - 8); ctx.textAlign = 'left'; }
         else if (phase === 'levelclear') overlay(`${lvl.name} cleared`, [...(clearSummary ? [`${starText(clearSummary.stars)}   ${clearSummary.time.toFixed(1)}s`, `Gold ${clearSummary.gold}${clearSummary.allGold ? ' ✓' : ''}   ·   ${clearSummary.alarm ? 'Alarm raised ✗' : 'No alarm ✓'}`] : []), `Score ${score}   ·   ${completed.size} of ${levels.length} rooms cleared`, ...(completed.size === levels.length && missingRequired().length ? [`Go back for the ${missingRequired()[0].obj.label.toLowerCase()}`] : [])], 'Press Space to continue');
         else if (phase === 'dead') { if (time - deathAt > 0.7) overlay(message.split('\n')[0].replace(/[!.]$/, '') || 'Caught!', [`${lives} ${lives === 1 ? 'life' : 'lives'} left`, ...(diff().keepLoot ? ['You keep your key and gold.'] : [])], 'Press Space to retry'); }
