@@ -1390,11 +1390,11 @@ export async function startGame() {
     function drawCastle(c, W, H, big) {
         const cols = Math.max(...levels.map((l) => l.castle_x)) + 1, rows = Math.max(...levels.map((l) => l.castle_y)) + 1;
         const mw = levels[0].map[0].length, mh = levels[0].map.length;
-        const pad = big ? 36 : 10, gapX = big ? 48 : 14, gapY = big ? 40 : 16;
+        const pad = big ? 34 : 10, gapX = big ? 40 : 14, gapY = big ? 34 : 16;
         const s = Math.min((W - pad * 2 - gapX * (cols - 1)) / (cols * mw), (H - pad * 2 - gapY * (rows - 1)) / (rows * mh));
         const rw = mw * s, rh = mh * s;
         const totalW = cols * rw + (cols - 1) * gapX, totalH = rows * rh + (rows - 1) * gapY;
-        const ox = (W - totalW) / 2, oy = (H - totalH) / 2;
+        const ox = (W - totalW) / 2, oy = big ? pad - 2 + (H - pad * 2 - totalH) / 2 : (H - totalH) / 2;
         const pos = (l) => [ox + l.castle_x * (rw + gapX), oy + l.castle_y * (rh + gapY)];
         c.clearRect(0, 0, W, H); c.fillStyle = '#0b0b0e'; c.fillRect(0, 0, W, H);
         // links
@@ -1418,8 +1418,23 @@ export async function startGame() {
             if (i === levelIndex && phase !== 'title') { c.fillStyle = '#3f6bb5'; c.fillRect(x + player.x * s, y + player.y * s, Math.ceil(s), Math.ceil(s)); for (const g of guards) { c.fillStyle = g.state === 'alert' ? '#ff4040' : '#c33'; c.fillRect(x + (g.px / TILE) * s, y + (g.py / TILE) * s, Math.ceil(s), Math.ceil(s)); } for (const b of blades) { c.fillStyle = '#c8c8d4'; c.fillRect(x + (b.px / TILE) * s, y + (b.py / TILE) * s, Math.ceil(s), Math.ceil(s)); } }
             c.strokeStyle = i === levelIndex ? '#ffe066' : completed.has(i) ? '#6c9be0' : '#333'; c.lineWidth = i === levelIndex ? 2 : 1; c.strokeRect(x - 1, y - 1, rw + 2, rh + 2);
             c.fillStyle = completed.has(i) ? '#6c9be0' : known ? '#ddd' : '#555'; c.font = `${big ? 'bold 14px' : '10px'} system-ui, sans-serif`; c.textAlign = 'center';
-            c.fillText(`${l.number}. ${known ? l.name : '???'}${completed.has(i) ? ' ' + starText(roomStars.get(i) ?? 1) : ''}`, x + rw / 2, y - (big ? 8 : 3));
+            const goal = l.map.some((row) => row.includes(PLANS));
+            c.fillText(`${l.number}. ${known || (goal && big) ? l.name : '???'}${completed.has(i) ? ' ' + starText(roomStars.get(i) ?? 1) : ''}`, x + rw / 2, y - (big ? 8 : 3));
+            if (goal && !lockdown) { c.fillStyle = '#fff3a8'; c.font = `${big ? 'bold 11px' : 'bold 9px'} system-ui, sans-serif`; c.fillText(big ? '✦ war plans' : '✦', x + rw / 2, y + rh + (big ? 12 : 9)); }
+            if (big && known) {
+                const goldLeft = m.flat().filter((t) => t === TREASURE).length, goldAll = l.map.flat().filter((t) => t === TREASURE).length;
+                const guardCount = i === levelIndex ? guards.length : (levelStates.get(i)?.guards.length ?? l.guards.length);
+                const prisoner = m.flat().includes(PRISONER) ? ' · prisoner' : '';
+                c.fillStyle = '#aab'; c.font = '10px system-ui, sans-serif';
+                c.fillText(`${goldAll - goldLeft}/${goldAll} gold · ${guardCount} guard${guardCount === 1 ? '' : 's'}${prisoner}`, x + rw / 2, y + rh + (goal && !lockdown ? 23 : 12));
+            }
         });
+        if (big) {
+            const items = [['#3f6bb5', 'you'], ['#c33', 'guard'], ['#ffd23a', 'key'], ['#3a64a8', 'stairs'], ['#e8c33a', 'gold'], ['#a070ff', 'portal'], ['#8a3a3a', 'trap'], ['#6b4a24', 'crates'], ['#9fffa0', 'prisoner'], ['#6c9be0', 'cleared']];
+            c.font = '10px system-ui, sans-serif'; c.textAlign = 'left';
+            let lx = (W - items.reduce((w, [, t]) => w + 20 + c.measureText(t).width, 0)) / 2;
+            for (const [col, label] of items) { c.fillStyle = col; c.fillRect(lx, H - 29, 8, 8); c.fillStyle = '#bbb'; c.fillText(label, lx + 11, H - 21); lx += 20 + c.measureText(label).width; }
+        }
         c.textAlign = 'left';
     }
 
@@ -1556,12 +1571,12 @@ export async function startGame() {
         const lvl = levels[levelIndex];
         if (phase === 'title') overlay('Mini Castle Wolfenstein', ['Steal the war plans from the War Room, then escape back to the gate.', 'Guards investigate noises: throw stones (Q) to lure them away.', 'Take a fallen guard\'s uniform (E) to walk past the rest.', `Difficulty:  ${['easy', 'normal', 'hard'].map((d, i) => `${i + 1} ${d === difficulty ? '[' + DIFFICULTY[d].label + ']' : DIFFICULTY[d].label}`).join('   ')}`, `${diff().label}: ${diff().blurb}.`, ...(hasSave ? ['Press C to continue your saved campaign'] : []), ...(daily ? [`Press D for today's challenge: ${daily.title}`] : [])], 'Press Space or tap to start a new campaign', { castle: true });
         else if (phase === 'paused') { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, VW, VH); }
-        if (pauseMenu) { const show = phase === 'paused'; if (pauseMenu.hidden === show) pauseMenu.hidden = !show; if (show) document.getElementById('menuGuide').textContent = assistOn() ? 'on' : 'off'; }
-        else if (phase === 'map') { ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, VW, VH); drawCastle(ctx, VW, VH, true); ctx.fillStyle = '#ffe066'; ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('The castle — press M to return', VW / 2, VH - 8); ctx.textAlign = 'left'; }
+        else if (phase === 'map') { ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, VW, VH); drawCastle(ctx, VW, VH, true); ctx.fillStyle = '#ffe066'; ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('The castle · M or Esc to return · exits lead to the next room, dotted lines are portals', VW / 2, VH - 8); ctx.font = 'bold 13px Cinzel, Georgia, serif'; ctx.fillText(lockdown ? 'Lockdown. Get back to the gate in the Cellar.' : `Castle map · room ${levelIndex + 1} of ${levels.length}`, VW / 2, 13); ctx.textAlign = 'left'; }
         else if (phase === 'levelclear') overlay(`${lvl.name} cleared`, [...(clearSummary ? [`${starText(clearSummary.stars)}   ${clearSummary.time.toFixed(1)}s`, `Gold ${clearSummary.gold}${clearSummary.allGold ? ' ✓' : ''}   ·   ${clearSummary.alarm ? 'Alarm raised ✗' : 'No alarm ✓'}`] : []), `Score ${score}   ·   ${completed.size} of ${levels.length} rooms cleared`, ...(completed.size === levels.length && missingRequired().length ? [`Go back for the ${missingRequired()[0].obj.label.toLowerCase()}`] : [])], 'Press Space to continue');
         else if (phase === 'dead') { if (time - deathAt > 0.7) overlay(message.split('\n')[0].replace(/[!.]$/, '') || 'Caught!', [`${lives} ${lives === 1 ? 'life' : 'lives'} left`, ...(diff().keepLoot ? ['You keep your key and gold.'] : [])], 'Press Space to retry'); }
         else if (phase === 'gameover') { if (time - deathAt > 0.7) overlay('Game over', [`Final score ${score}`], 'Press Space to try again'); }
         else if (phase === 'won') overlay('You escaped with the plans!', [`Final score ${score}  ·  ${kills} guard${kills === 1 ? '' : 's'} shot  ·  ${stats.alarms} alarm${stats.alarms === 1 ? '' : 's'}`, ...(earned.length ? ['New achievements: ' + earned.map((e) => `${e.icon}\u00a0${e.title.replace(/ /g, '\u00a0')}`).join('  ·  ')] : ['See the leaderboard for your achievements.'])], 'Press Space to play again');
+        if (pauseMenu) { const show = phase === 'paused'; if (pauseMenu.hidden === show) pauseMenu.hidden = !show; if (show) document.getElementById('menuGuide').textContent = assistOn() ? 'on' : 'off'; }
 
         drawCastle(cctx, 260, 190, false);
         timerEl.textContent = phase === 'title' ? '0.0s' : `${(elapsedMs() / 1000).toFixed(1)}s`;
