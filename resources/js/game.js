@@ -7,7 +7,7 @@ const SCALE = 2; // internal render scale: crisp sprites and text when the canva
 const FLOOR = 0, WALL = 1, DOOR = 2, KEY = 3, EXIT = 4, TREASURE = 5, HIDE = 6, PORTAL = 7;
 const SPIKES = 8, TRIPWIRE = 9, TRAPDOOR = 10, GAS = 11, CRUMBLE = 12, PIT = 13;
 const PLANS = 14, GUN = 15, AMMO = 16, PRISONER = 17;
-const GUN_AMMO = 6, AMMO_BOX = 4, BULLET_SPEED = 10, SHOT_NOISE = 320, KILL_POINTS = 50;
+const GUN_AMMO = 6, AMMO_BOX = 4, BULLET_SPEED = 10, SHOT_NOISE = 320, KILL_POINTS = 50, RECORD_POINTS = 100;
 const KO_TIME = 25, KO_POINTS = 30, KO_REACH = 42; // seconds a knocked-out guard sleeps, points for it, and how close you must be
 const ALARM_TIME = 20, ALARM_CHASE = 2.5;
 const DIFFICULTY = {
@@ -88,6 +88,7 @@ export async function startGame() {
     const restartBtn = document.getElementById('restart');
     const levelSpan = document.getElementById('level');
     const timerEl = document.getElementById('timer');
+    const bestEl = document.getElementById('best');
     const scoreEl = document.getElementById('score');
     const livesEl = document.getElementById('lives');
     const soundCheckbox = document.getElementById('sound');
@@ -164,6 +165,12 @@ export async function startGame() {
     const mod = (k) => mods.has(k);
     let lockdown = false, lockdownSiren = 0, earned = [], resultPosted = false;
     let roomStars = new Map(), clearSummary = null;
+    // Personal bests per room and difficulty, kept locally and merged with the server's when signed in.
+    let localBests = {}; try { localBests = JSON.parse(localStorage.getItem('woolfie.best') || '{}'); } catch {}
+    const bestKey = (i) => `${levels[i].number}:${difficulty}`;
+    const myBest = (i) => { const server = levels[i].my_best?.[difficulty]; const local = localBests[bestKey(i)]; return Math.min(server ?? Infinity, local ?? Infinity); };
+    const castleRecord = (i) => levels[i].records?.[difficulty] ?? null;
+    function noteBest(i, ms) { const key = bestKey(i); if (!(localBests[key] <= ms)) { localBests[key] = ms; try { localStorage.setItem('woolfie.best', JSON.stringify(localBests)); } catch {} } }
     const say = (g, kind) => { const list = BARKS[g.type === 'dog' && kind !== 'calm' ? 'dog' : kind]; g.say = { text: list[Math.floor(Math.random() * list.length)], until: time + 1.8 }; };
     const starText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
     let hint = null, hintsSeen = new Set();
@@ -597,6 +604,12 @@ export async function startGame() {
         for (let k = 1; k <= levels.length; k++) { const j = (levelIndex + k) % levels.length; if (!completed.has(j)) return j; }
         const miss = missingRequired(); return miss.length ? (miss[0].obj.id === 'gate' ? levelIndex : miss[0].level) : -1;
     }
+    function bestLine(sum) {
+        const t = (ms) => `${(ms / 1000).toFixed(1)}s`;
+        if (sum.newRecord) return `Castle record! Previous best ${t(sum.record)}`;
+        const mine = sum.previous === null ? 'First clear' : sum.newBest ? `New best (was ${t(sum.previous)})` : `Your best ${t(sum.previous)}`;
+        return sum.record === null ? mine : `${mine}   ·   Castle record ${t(sum.record)}`;
+    }
     function completeLevel() {
         levelScore += LEVEL_BONUS; score += LEVEL_BONUS;
         if (treasureFound === treasureTotal && treasureTotal > 0) markObjective('all_gold', { silent: true });
@@ -605,7 +618,11 @@ export async function startGame() {
             const allGold = treasureTotal === 0 || treasureFound === treasureTotal;
             const stars = 1 + (allGold ? 1 : 0) + (levelAlarmed ? 0 : 1);
             roomStars.set(levelIndex, Math.max(stars, roomStars.get(levelIndex) ?? 0));
-            clearSummary = { stars, time: elapsedMs() / 1000, gold: `${treasureFound}/${treasureTotal}`, alarm: levelAlarmed, allGold };
+            const ms = Math.round(elapsedMs()), previous = myBest(levelIndex), record = castleRecord(levelIndex);
+            clearSummary = { stars, time: ms / 1000, gold: `${treasureFound}/${treasureTotal}`, alarm: levelAlarmed, allGold, newBest: ms < previous, previous: previous === Infinity ? null : previous, record, newRecord: record !== null && ms < record };
+            noteBest(levelIndex, ms);
+            if (clearSummary.newRecord) { score += RECORD_POINTS; levelScore += RECORD_POINTS; popup(`Castle record! +${RECORD_POINTS}`, player.px + 16, player.py - 20, '#ffe066'); }
+            else if (clearSummary.newBest && clearSummary.previous !== null) popup('New best time!', player.px + 16, player.py - 20, '#ffe066');
         }
         const earned = (levels[levelIndex].objectives ?? []).filter((o) => isDone(levelIndex, o.id)).map((o) => o.label);
         message = `Room clear! +${LEVEL_BONUS}` + (earned.length ? `\nObjectives: ${earned.join(', ')}` : '');
@@ -1572,13 +1589,14 @@ export async function startGame() {
         if (phase === 'title') overlay('Mini Castle Wolfenstein', ['Steal the war plans from the War Room, then escape back to the gate.', 'Guards investigate noises: throw stones (Q) to lure them away.', 'Take a fallen guard\'s uniform (E) to walk past the rest.', `Difficulty:  ${['easy', 'normal', 'hard'].map((d, i) => `${i + 1} ${d === difficulty ? '[' + DIFFICULTY[d].label + ']' : DIFFICULTY[d].label}`).join('   ')}`, `${diff().label}: ${diff().blurb}.`, ...(hasSave ? ['Press C to continue your saved campaign'] : []), ...(daily ? [`Press D for today's challenge: ${daily.title}`] : [])], 'Press Space or tap to start a new campaign', { castle: true });
         else if (phase === 'paused') { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, VW, VH); }
         else if (phase === 'map') { ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, VW, VH); drawCastle(ctx, VW, VH, true); ctx.fillStyle = '#ffe066'; ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('The castle · M or Esc to return · exits lead to the next room, dotted lines are portals', VW / 2, VH - 8); ctx.font = 'bold 13px Cinzel, Georgia, serif'; ctx.fillText(lockdown ? 'Lockdown. Get back to the gate in the Cellar.' : `Castle map · room ${levelIndex + 1} of ${levels.length}`, VW / 2, 13); ctx.textAlign = 'left'; }
-        else if (phase === 'levelclear') overlay(`${lvl.name} cleared`, [...(clearSummary ? [`${starText(clearSummary.stars)}   ${clearSummary.time.toFixed(1)}s`, `Gold ${clearSummary.gold}${clearSummary.allGold ? ' ✓' : ''}   ·   ${clearSummary.alarm ? 'Alarm raised ✗' : 'No alarm ✓'}`] : []), `Score ${score}   ·   ${completed.size} of ${levels.length} rooms cleared`, ...(completed.size === levels.length && missingRequired().length ? [`Go back for the ${missingRequired()[0].obj.label.toLowerCase()}`] : [])], 'Press Space to continue');
+        else if (phase === 'levelclear') overlay(`${lvl.name} cleared`, [...(clearSummary ? [`${starText(clearSummary.stars)}   ${clearSummary.time.toFixed(1)}s`, `Gold ${clearSummary.gold}${clearSummary.allGold ? ' ✓' : ''}   ·   ${clearSummary.alarm ? 'Alarm raised ✗' : 'No alarm ✓'}`, bestLine(clearSummary)] : []), `Score ${score}   ·   ${completed.size} of ${levels.length} rooms cleared`, ...(completed.size === levels.length && missingRequired().length ? [`Go back for the ${missingRequired()[0].obj.label.toLowerCase()}`] : [])], 'Press Space to continue');
         else if (phase === 'dead') { if (time - deathAt > 0.7) overlay(message.split('\n')[0].replace(/[!.]$/, '') || 'Caught!', [`${lives} ${lives === 1 ? 'life' : 'lives'} left`, ...(diff().keepLoot ? ['You keep your key and gold.'] : [])], 'Press Space to retry'); }
         else if (phase === 'gameover') { if (time - deathAt > 0.7) overlay('Game over', [`Final score ${score}`], 'Press Space to try again'); }
         else if (phase === 'won') overlay('You escaped with the plans!', [`Final score ${score}  ·  ${kills} guard${kills === 1 ? '' : 's'} shot  ·  ${stats.alarms} alarm${stats.alarms === 1 ? '' : 's'}`, ...(earned.length ? ['New achievements: ' + earned.map((e) => `${e.icon}\u00a0${e.title.replace(/ /g, '\u00a0')}`).join('  ·  ')] : ['See the leaderboard for your achievements.'])], 'Press Space to play again');
         if (pauseMenu) { const show = phase === 'paused'; if (pauseMenu.hidden === show) pauseMenu.hidden = !show; if (show) document.getElementById('menuGuide').textContent = assistOn() ? 'on' : 'off'; }
 
         drawCastle(cctx, 260, 190, false);
+        if (bestEl && phase !== 'title') { const mine = myBest(levelIndex), rec = castleRecord(levelIndex); const txt = [mine !== Infinity ? `Best ${(mine / 1000).toFixed(1)}s` : null, rec !== null ? `Record ${(rec / 1000).toFixed(1)}s` : null].filter(Boolean).join(' · '); if (bestEl.textContent !== txt) bestEl.textContent = txt; }
         timerEl.textContent = phase === 'title' ? '0.0s' : `${(elapsedMs() / 1000).toFixed(1)}s`;
         scoreEl.textContent = score;
         livesEl.textContent = '♥'.repeat(Math.max(0, lives)) + '♡'.repeat(Math.max(0, diff().lives - lives));

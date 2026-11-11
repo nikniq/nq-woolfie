@@ -26,6 +26,7 @@ canvas{background:#000;border:6px solid #2a2a30;image-rendering:pixelated;width:
 #controls{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0}
 #levelLabel{font-weight:600}
 #timer{font-variant-numeric:tabular-nums;color:#ffdd00;font-size:22px}
+#best{font-size:12px;min-height:14px;margin:-4px 0 4px;text-align:right}
 .field{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;font-size:14px}
 .field input{padding:6px;background:#0b0b0b;border:1px solid #333;color:#fff}
 #info{white-space:pre-wrap;padding:8px;background:#0b0b0b;border:1px solid #222;min-height:80px;overflow:auto}

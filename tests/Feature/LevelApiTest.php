@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\GameRun;
 use App\Models\Level;
+use App\Models\User;
 use Database\Seeders\LevelSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -59,5 +61,24 @@ class LevelApiTest extends TestCase
         $this->assertSame(12, $warRoom->fresh()->number);
         $this->assertSame('The Crypt', Level::where('number', 8)->firstOrFail()->name);
         $this->assertSame(12, Level::count());
+    }
+
+    public function test_levels_carry_the_fastest_times_for_everyone_and_for_the_signed_in_player(): void
+    {
+        $this->seed(LevelSeeder::class);
+        $level = Level::where('number', 1)->firstOrFail();
+        $me = User::factory()->create();
+        GameRun::create(['level_id' => $level->id, 'player_name' => 'Vera', 'outcome' => 'completed', 'time_ms' => 8000, 'score' => 350, 'difficulty' => 'normal']);
+        GameRun::create(['user_id' => $me->id, 'level_id' => $level->id, 'player_name' => $me->name, 'outcome' => 'completed', 'time_ms' => 9500, 'score' => 300, 'difficulty' => 'normal']);
+        GameRun::create(['user_id' => $me->id, 'level_id' => $level->id, 'player_name' => $me->name, 'outcome' => 'caught', 'time_ms' => 1000, 'score' => 0, 'difficulty' => 'normal']);
+
+        $this->getJson('/api/levels')
+            ->assertJsonPath('data.0.records.normal', 8000)
+            ->assertJsonPath('data.0.my_best', []);
+
+        $this->actingAs($me)->getJson('/api/levels')
+            ->assertJsonPath('data.0.records.normal', 8000)
+            ->assertJsonPath('data.0.my_best.normal', 9500)
+            ->assertJsonPath('data.1.records', []);
     }
 }

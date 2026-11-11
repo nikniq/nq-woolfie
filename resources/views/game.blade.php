@@ -40,6 +40,7 @@
             <div id="levelLabel">Level <span id="level">1</span> / {{ $levelCount }}</div>
             <div id="timer">0.0s</div>
         </div>
+        <div id="best" class="muted"></div>
         <div id="controls">
             <div>Score <strong id="score">0</strong></div>
             <div>Lives <span id="lives">♥♥♥</span></div>
