@@ -58,6 +58,10 @@ sharper guards, and the gate in the Cellar lights up. Reach it to escape.
 - **Stones.** Press Q to throw a stone up to four tiles ahead; nearby guards
   go to look where it landed. You start with three and find one in each new
   room.
+- **Papers, please.** While you wear a uniform, an officer who gets a look at
+  you demands your papers. Press E within a second or two and he waves you
+  through and ignores you for a while. Hesitate, or walk away from him, and
+  the alarm goes up.
 - **Knockouts.** Creep up behind a guard and press E to knock him out
   silently. It is not a kill, so the Pacifist achievement survives. He wakes
   after 25 seconds unless you hide him behind crates. Dogs cannot be

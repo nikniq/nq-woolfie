@@ -36,6 +36,7 @@ const BARKS = {
     dog: ['Grrr!', 'Woof!'],
 };
 const CHEST = 18, CRACKED = 19, FUSE = 20;
+const PAPERS_TIME = 1.6, PAPERS_GRACE = 20, PAPERS_POINTS = 15; // seconds to show your papers to an officer, how long a passed check lasts, bonus for passing
 const POWER_OUT = 12, POWER_SIGHT = 0.6; // seconds a pulled fuse keeps the room dark, and how far guards see in the dark
 const CHEST_TIME = 2.5, CHEST_LOOT = ['grenade', 'vest', 'ammo', 'grenade', 'stones'];
 const GRENADE_RANGE = 3, GRENADE_FUSE = 1.1, GRENADE_RADIUS = TILE * 1.6;
@@ -160,6 +161,7 @@ export async function startGame() {
     let enemyBullets = [], stones = [], grenades = [];
     let chestTimer = 0, chestAt = null;
     let powerOutUntil = 0, fuseArmed = true;
+    let papersCheck = null; // an officer is inspecting your disguise: { g, until }
     const powerOut = () => powerOutUntil > time;
     let daily = null, dailyDate = null, mods = new Set();
     const mod = (k) => mods.has(k);
@@ -520,7 +522,7 @@ export async function startGame() {
         bullets = []; enemyBullets = []; stones = []; reinforcements = []; alarmUntil = -1; muzzle = 0;
         if (!resume && !mod('no_stones')) player.stones = Math.min(MAX_STONES, player.stones + 1);
         if (mod('no_stones')) player.stones = 0;
-        grenades = []; chestTimer = 0; chestAt = null; powerOutUntil = 0; fuseArmed = true;
+        grenades = []; chestTimer = 0; chestAt = null; powerOutUntil = 0; fuseArmed = true; papersCheck = null;
         onPortal = true;
         dizzy = 0; lastTile = [player.x, player.y]; trippedAt = -1;
         if (!resume) { runStart = now(); runReported = false; message = ''; }
@@ -891,8 +893,19 @@ export async function startGame() {
             if (b.stripped && player.disguised) { player.disguised = false; message = 'The guard woke up and missed his uniform. Your disguise is blown!'; }
         }
     }
+    function passPapers() {
+        const g = papersCheck.g; papersCheck = null; g.papersAt = time; g.say = { text: 'Carry on.', until: time + 1.8 };
+        score += PAPERS_POINTS; levelScore += PAPERS_POINTS; playSound('pickup'); popup(`Papers ✓ +${PAPERS_POINTS}`, player.px + 16, player.py - 8, '#9fd0ff');
+        message = 'The officer waves you through. He will not look at you twice for a while.';
+    }
+    function failPapers(why) {
+        const g = papersCheck.g; papersCheck = null; g.papersAt = time;
+        g.state = 'alert'; g.alertAt = time; g.notice = 1; g.lastSeen = { x: player.x, y: player.y, time: now() }; say(g, 'alert'); playSoundAt('alert', g.px);
+        raiseAlarm(why);
+    }
     function interact() {
         if (phase !== 'playing') return;
+        if (papersCheck) { passPapers(); return; }
         if (player.carrying) { dropBody(); return; }
         const officer = pickpocketTarget(); if (officer) { pickpocket(officer); return; }
         const sleeper = knockoutTarget(); if (sleeper) { knockOut(sleeper); return; }
@@ -915,7 +928,7 @@ export async function startGame() {
         if (phase !== 'playing' || player.disguised) return;
         const b = bodies.find((q) => canStrip(q) && !q.hidden && Math.hypot(q.px - player.px, q.py - player.py) < 20); if (!b) return;
         b.stripped = true; player.disguised = true; playSound('uniform');
-        message = 'You put on the uniform. Guards will only notice you up close; officers and dogs are harder to fool. Firing blows your cover.';
+        message = 'You put on the uniform. Guards will only notice you up close; dogs are not fooled. An officer who sees you will ask for papers: press E quickly. Firing blows your cover.';
         popup('Disguised', player.px + 16, player.py - 6, '#9fd0ff');
     }
 
@@ -1210,7 +1223,8 @@ export async function startGame() {
             const gx = Math.floor((g.px + TILE / 2) / TILE), gy = Math.floor((g.py + TILE / 2) / TILE);
             const vx = pcx - (g.px + TILE / 2), vy = pcy - (g.py + TILE / 2), d = Math.hypot(vx, vy);
             const gt = GUARD_TYPES[g.type ?? 'guard'];
-            const disguiseFactor = player.disguised && !player.carrying && !alarmOn && g.state !== 'alert' ? DISGUISE_SIGHT[g.type ?? 'guard'] : 1;
+            const cleared = g.type === 'officer' && g.papersAt !== undefined && time - g.papersAt < PAPERS_GRACE;
+            const disguiseFactor = player.disguised && !player.carrying && !alarmOn && g.state !== 'alert' ? (cleared ? 0.15 : DISGUISE_SIGHT[g.type ?? 'guard']) : 1;
             const sight = VIEW_DIST * gt.sight * diff().sight * disguiseFactor * (lockdown ? LOCKDOWN.sight : 1) * (mod('eagle_eyes') ? 1.3 : 1) * (powerOut() && g.state !== 'alert' ? POWER_SIGHT : 1);
             let inView = false;
             if (d < sight && !player.hidden) {
@@ -1223,7 +1237,13 @@ export async function startGame() {
             const instant = g.state === 'alert' || alarmOn || g.type === 'dog' || player.carrying || d < TILE * 1.2;
             if (inView) { g.notice = Math.min(1, (g.notice ?? 0) + dt / (diff().notice * (g.type === 'officer' ? 0.7 : 1) * (0.45 + 0.55 * d / sight))); }
             else { g.notice = Math.max(0, (g.notice ?? 0) - dt / 1.2); }
-            const canSee = inView && (instant || g.notice >= 1);
+            // Papers, please: an officer who gets a look at your uniform demands papers instead of shooting on sight.
+            if (inView && player.disguised && !player.carrying && !alarmOn && g.type === 'officer' && g.state !== 'alert' && !cleared && !papersCheck && d < TILE * 3.2) {
+                papersCheck = { g, until: time + PAPERS_TIME }; g.notice = 0; g.dir = dirFromVec(vx, vy); g.say = { text: 'Papers!', until: time + PAPERS_TIME }; playSoundAt('huh', g.px);
+                message = 'An officer wants to see your papers. Press E before he loses patience.';
+            }
+            if (papersCheck && papersCheck.g === g) { g.notice = 0; g.dir = dirFromVec(vx, vy); if (time >= papersCheck.until || d > TILE * 4.5) { failPapers(d > TILE * 4.5 ? 'You walked away from an inspection!' : 'Your papers were not in order!'); } }
+            const canSee = inView && (instant || g.notice >= 1) && !(papersCheck && papersCheck.g === g);
             const noticing = inView && !canSee;
             if (noticing) { g.dir = dirFromVec(vx, vy); if (!g.noticed) { g.noticed = true; playSoundAt('huh', g.px); } }
             else if (g.notice === 0) { g.noticed = false; }
@@ -1497,6 +1517,7 @@ export async function startGame() {
         }
         if (powerOut()) { const left = powerOutUntil - time, w = TILE * 3, x = VW / 2 - w / 2; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x, 6, w, 5); ctx.fillStyle = '#cfe6ff'; ctx.fillRect(x, 6, w * left / POWER_OUT, 5); ctx.fillStyle = '#cfe6ff'; ctx.font = '12px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText(`POWER OUT ${Math.ceil(left)}s`, VW / 2, 22); ctx.textAlign = 'left'; }
         for (const b of bodies) { if (!b.guard || b.hidden) continue; ctx.fillStyle = b.sleep < 6 ? '#ffb060' : '#cfe6ff'; ctx.font = '12px VT323, monospace'; const bob = Math.sin(time * 3) * 2; ctx.fillText(b.sleep < 6 ? 'z!' : 'z z', b.px + 20, b.py + 2 + bob); }
+        if (papersCheck) { const left = Math.max(0, papersCheck.until - time), w = TILE * 2.6, x = player.px + 16 - w / 2, y = player.py < 48 ? player.py + 52 : player.py - 30; ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(x - 4, y - 14, w + 8, 26); ctx.fillStyle = left < 0.5 ? '#ff6060' : '#ffe066'; ctx.font = 'bold 12px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText('PAPERS!  press E', player.px + 16, y - 3); ctx.fillRect(x, y + 3, w * left / PAPERS_TIME, 5); ctx.textAlign = 'left'; }
         if (chestTimer > 0 && chestAt) { const w = TILE * 1.4, x = player.px + 16 - w / 2, y = player.py - 10; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(x, y, w, 5); ctx.fillStyle = '#ffd080'; ctx.fillRect(x, y, w * Math.min(1, chestTimer / CHEST_TIME), 5); }
         for (const st of stones) { const k = st.t / st.dur; const x = st.x0 + (st.x1 - st.x0) * k, y = st.y0 + (st.y1 - st.y0) * k - Math.sin(k * Math.PI) * 26; ctx.fillStyle = '#c8c8c8'; ctx.fillRect(x - 2, y - 2, 4, 4); }
         { const nb = nearBody(); const label = pickpocketTarget() ? 'E: lift the combination' : nearBody()?.type === 'officer' && needsCode() ? 'E: search the officer' : player.carrying ? (tileAt(player.x, player.y) === HIDE ? 'E: hide body in crates' : 'E: drop body') : nb ? (canStrip(nb) ? 'E: take uniform' : 'E: pick up body') : null; if (label && phase === 'playing') { ctx.fillStyle = '#9fd0ff'; ctx.font = '16px VT323, monospace'; ctx.textAlign = 'center'; ctx.fillText(label, player.px + 16, player.py - 10); ctx.textAlign = 'left'; } }
@@ -1615,10 +1636,10 @@ export async function startGame() {
     // Debug hook for automated checks: only when the page is opened with ?debug=1
     if (new URLSearchParams(location.search).has('debug')) {
         window.__woolfie = {
-            state: () => ({ phase, levelIndex, sleepers: bodies.filter((b) => b.guard).map((b) => +b.sleep.toFixed(1)), score, powerOut: powerOut(), powerLeft: Math.max(0, +(powerOutUntil - time).toFixed(1)), guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), code: player.code, guardPos: guards.map((g) => [Math.round(g.px), Math.round(g.py), g.dir, g.type]), lights: lights.map((l) => ({ broken: l.broken, notice: +l.notice.toFixed(2), angle: +l.angle.toFixed(2), tx: l.tx, ty: l.ty })), stars: [...roomStars.entries()], says: guards.map((g) => (g.say && g.say.until > time ? g.say.text : null)), notice: guards.map((g) => +(g.notice ?? 0).toFixed(2)), assist: assistOn(), hasKey: player.hasKey, user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
+            state: () => ({ phase, levelIndex, papers: papersCheck ? +(papersCheck.until - time).toFixed(2) : null, sleepers: bodies.filter((b) => b.guard).map((b) => +b.sleep.toFixed(1)), score, powerOut: powerOut(), powerLeft: Math.max(0, +(powerOutUntil - time).toFixed(1)), guards: guards.length, bodies: bodies.length, alarm: alarmUntil > time, reinforcements: reinforcements.length, kills, difficulty, hasSave, enemyBullets: enemyBullets.length, message, guardTypes: guards.map((g) => g.type), guardStates: guards.map((g) => g.state), code: player.code, guardPos: guards.map((g) => [Math.round(g.px), Math.round(g.py), g.dir, g.type]), lights: lights.map((l) => ({ broken: l.broken, notice: +l.notice.toFixed(2), angle: +l.angle.toFixed(2), tx: l.tx, ty: l.ty })), stars: [...roomStars.entries()], says: guards.map((g) => (g.say && g.say.until > time ? g.say.text : null)), notice: guards.map((g) => +(g.notice ?? 0).toFixed(2)), assist: assistOn(), hasKey: player.hasKey, user: api.user, serverSave: !!api.save, grenades: player.grenades, vest: player.vest, mods: [...mods], dailyDate, dailyLoaded: !!daily, chestTimer, carrying: !!player.carrying, hiddenBodies: bodies.filter((b) => b.hidden).length, hint: hint?.key ?? null, aimTimers: guards.map((g) => g.aimTimer ?? 0), lockdown, stats, earned, atEntrance: atEntrance(), lives, stones: player.stones, disguised: player.disguised, bodiesFound: bodies.filter((b) => b.found).length, ammo: player.ammo, gun: player.gun, score, objectives: [...objectivesDone.entries()].map(([k, v]) => [k, [...v]]), roomGuards: [...levelStates.entries()].map(([k, v]) => [k, v.guards.length]) }),
             givePistol: () => { player.gun = true; player.ammo = GUN_AMMO; }, fire, raiseAlarm, markObjective,
             teleport: (x, y) => { player.x = x; player.y = y; player.px = x * TILE; player.py = y * TILE; lastTile = [x, y]; },
-            face: (d) => { player.dir = d; }, resumeCampaign, saveCampaign, setDifficulty: (d) => { difficulty = d; }, alertAll: alertAllGuards, throwStone, takeUniform, interact, throwGrenade, explode, giveGrenades: (n) => { player.grenades = n; }, startDaily: () => startCampaign({ dailyRun: true }), goBack: goBackUpstairs, pickPlans: () => { lockdown = true; markObjective('plans'); }, markPlans: () => doneSet(levels.findIndex((l) => (l.objectives ?? []).some((o) => o.id === 'plans'))).add('plans'), addBody: (x, y) => bodies.push({ px: x * TILE, py: y * TILE, dir: 'down', type: 'guard', born: time - 1 }), killGuard: (i) => { const g = guards.splice(i, 1)[0]; bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time - 1 }); },
+            face: (d) => { player.dir = d; }, resumeCampaign, saveCampaign, setDifficulty: (d) => { difficulty = d; }, alertAll: alertAllGuards, throwStone, takeUniform, interact, throwGrenade, clearBodies: () => { bodies = []; }, givePapersCheck: () => { const g = guards.find((q) => q.type === 'officer'); if (g) papersCheck = { g, until: time + PAPERS_TIME }; }, explode, giveGrenades: (n) => { player.grenades = n; }, startDaily: () => startCampaign({ dailyRun: true }), goBack: goBackUpstairs, pickPlans: () => { lockdown = true; markObjective('plans'); }, markPlans: () => doneSet(levels.findIndex((l) => (l.objectives ?? []).some((o) => o.id === 'plans'))).add('plans'), addBody: (x, y) => bodies.push({ px: x * TILE, py: y * TILE, dir: 'down', type: 'guard', born: time - 1 }), killGuard: (i) => { const g = guards.splice(i, 1)[0]; bodies.push({ px: g.px, py: g.py, dir: g.dir, type: g.type, born: time - 1 }); },
         };
     }
 
