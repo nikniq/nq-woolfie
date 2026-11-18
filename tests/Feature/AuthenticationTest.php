@@ -16,7 +16,7 @@ class AuthenticationTest extends TestCase
             'name' => 'Blazko', 'email' => 'bj@example.com', 'password' => 'correct horse', 'password_confirmation' => 'correct horse',
         ]);
 
-        $response->assertRedirect('/')->assertSessionHas('status');
+        $response->assertRedirect('/play')->assertSessionHas('status');
         $this->assertAuthenticated();
         $this->assertDatabaseHas('users', ['name' => 'Blazko', 'email' => 'bj@example.com']);
     }
@@ -58,7 +58,7 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertRedirect('/');
+        $this->post('/login', ['email' => $user->email, 'password' => 'password'])->assertRedirect('/play');
 
         $this->assertAuthenticatedAs($user);
     }
@@ -67,7 +67,7 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->actingAs($user)->post('/logout')->assertRedirect('/');
+        $this->actingAs($user)->post('/logout')->assertRedirect('/play');
 
         $this->assertGuest();
     }
@@ -76,7 +76,7 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create(['name' => 'Blazko']);
 
-        $this->actingAs($user)->get('/')->assertOk()
+        $this->actingAs($user)->get('/play')->assertOk()
             ->assertSee('data-user-name="Blazko"', false)
             ->assertSee('value="Blazko" readonly', false)
             ->assertSee('Sign out');
@@ -84,6 +84,6 @@ class AuthenticationTest extends TestCase
 
     public function test_guest_sees_sign_in_links_instead(): void
     {
-        $this->get('/')->assertOk()->assertSee('Register')->assertDontSee('data-user-name', false);
+        $this->get('/play')->assertOk()->assertSee('Sign in')->assertDontSee('data-user-name', false);
     }
 }

@@ -3,13 +3,15 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EditorController;
 use App\Http\Controllers\GameController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\SavedGameController;
 use App\Http\Middleware\EditorAuth;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [GameController::class, 'index'])->name('game');
+Route::get('/', [HomeController::class, 'index'])->name('home');
+Route::get('/play', [GameController::class, 'index'])->name('game');
 Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
 Route::get('/players/{name}', [PlayerController::class, 'show'])->name('player');
 

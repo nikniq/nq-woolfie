@@ -46,7 +46,7 @@ class LevelApiTest extends TestCase
     {
         $this->seed(LevelSeeder::class);
 
-        $this->get('/')->assertOk()->assertSee('id="game"', false)->assertSee('/ 12');
+        $this->get('/play')->assertOk()->assertSee('id="game"', false)->assertSee('/ 12');
     }
 
     public function test_reseeding_moves_a_renumbered_room_without_replacing_its_row(): void
