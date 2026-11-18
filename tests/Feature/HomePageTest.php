@@ -19,6 +19,7 @@ class HomePageTest extends TestCase
             ->assertSeeText('12 connected rooms')
             ->assertSee('War Room')
             ->assertSee(route('game'))
+            ->assertSee('images/screens/room-5.jpg')
             ->assertDontSee('id="game"', false);
     }
 }

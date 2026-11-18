@@ -19,31 +19,40 @@
         <p class="hero__note">No download, no install. Works with keyboard, touch and gamepad.</p>
     </div>
     <div class="hero__art" aria-hidden="true">
-        <svg viewBox="0 0 320 220" shape-rendering="crispEdges">
-            <rect width="320" height="220" fill="#15131b"/>
-            <g fill="#2a2732">
-                <rect x="0" y="0" width="320" height="20"/><rect x="0" y="200" width="320" height="20"/>
-                <rect x="0" y="0" width="20" height="220"/><rect x="300" y="0" width="20" height="220"/>
-                <rect x="140" y="20" width="20" height="80"/><rect x="200" y="120" width="100" height="20"/>
-            </g>
-            <polygon points="230,70 150,30 150,150" fill="#ffe066" opacity=".16"/>
-            <rect x="222" y="62" width="16" height="16" fill="#b33"/><rect x="226" y="54" width="8" height="8" fill="#e8c9a0"/>
-            <rect x="44" y="150" width="16" height="16" fill="#3c8"/><rect x="48" y="142" width="8" height="8" fill="#e8c9a0"/>
-            <rect x="80" y="40" width="20" height="20" fill="#7a5530"/><rect x="84" y="44" width="12" height="12" fill="#8f6538"/>
-            <rect x="260" y="170" width="10" height="6" fill="#ffd34d"/><rect x="266" y="166" width="4" height="4" fill="#ffd34d"/>
-            <rect x="40" y="40" width="8" height="8" fill="#ffdd00"/><rect x="44" y="44" width="8" height="8" fill="#ffdd00"/>
-            <g fill="#4a4652"><rect x="260" y="36" width="24" height="4"/><rect x="260" y="44" width="24" height="4"/><rect x="260" y="52" width="24" height="4"/></g>
-            <circle cx="230" cy="40" r="6" fill="#fff"/><circle cx="230" cy="40" r="3" fill="#c33"/>
-        </svg>
-        <div class="hero__badge">Room 1 of {{ $levels->count() }} · The Cellar</div>
+        <img src="{{ asset('images/screens/room-5.jpg') }}" width="1326" height="570" alt="">
+        <div class="hero__badge">In-game · {{ $levels[4] ?? 'The Keep' }}</div>
     </div>
 </section>
 
 <section class="stats-strip">
     <div><strong>{{ $levels->count() }}</strong> <span>connected rooms</span></div>
     <div><strong>3</strong><span>difficulty modes</span></div>
-    <div><strong>{{ number_format($stats['runs']) }}</strong><span>rooms cleared by players</span></div>
-    <div><strong>{{ number_format($stats['escapes']) }}</strong><span>successful escapes</span></div>
+    @if ($stats['runs'] >= 100)
+        <div><strong>{{ number_format($stats['runs']) }}</strong><span>rooms cleared by players</span></div>
+    @else
+        <div><strong>Free</strong><span>play in your browser</span></div>
+    @endif
+    @if ($stats['escapes'] >= 10)
+        <div><strong>{{ number_format($stats['escapes']) }}</strong><span>successful escapes</span></div>
+    @else
+        <div><strong>Daily</strong><span>new challenge every day</span></div>
+    @endif
+</section>
+
+<section class="section" aria-labelledby="screensTitle">
+    <header class="section__head">
+        <p class="eyebrow">Screenshots</p>
+        <h2 id="screensTitle">Straight from the game</h2>
+        <p>Torchlit corridors, sweeping searchlights and guards who notice. Every room is hand-built.</p>
+    </header>
+    <div class="screens">
+        @foreach ([1, 10, 12] as $room)
+            <figure>
+                <img src="{{ asset("images/screens/room-{$room}.jpg") }}" width="1326" height="570" loading="lazy" alt="Gameplay in {{ $levels[$room - 1] ?? "room {$room}" }}">
+                <figcaption>Room {{ $room }} · {{ $levels[$room - 1] ?? '' }}</figcaption>
+            </figure>
+        @endforeach
+    </div>
 </section>
 
 <section id="features" class="section">
