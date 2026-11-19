@@ -28,6 +28,7 @@
                     @if (config('game.editor_password') !== '')
                         <a href="{{ route('editor.index') }}" @class(['active' => request()->routeIs('editor.*')])>Editor</a>
                     @endif
+                    <a href="https://nikniq.com" target="_blank" rel="noopener">NikNiq ↗</a>
                 </nav>
                 <div class="nav-account">
                     @auth
