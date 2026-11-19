@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => '/auth/google/callback',
+    ],
+
+    'nikniq' => [
+        'base_url' => env('NIKNIQ_URL', 'https://nikniq.com'),
+        'client_id' => env('NIKNIQ_CLIENT_ID'),
+        'client_secret' => env('NIKNIQ_CLIENT_SECRET'),
+        'redirect' => '/auth/nikniq/callback',
+    ],
+
 ];

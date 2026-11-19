@@ -6,6 +6,7 @@
 <section class="auth-form">
     <h2>Create an account</h2>
     <p class="muted">Your player name goes on the leaderboard, and your campaign is saved to your account so you can continue on any device.</p>
+    @include('auth._oauth')
     <form method="post" action="{{ route('register') }}">
         @csrf
         <label class="field">Player name

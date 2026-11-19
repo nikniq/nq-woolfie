@@ -5,6 +5,7 @@
 @section('content')
 <section class="auth-form">
     <h2>Sign in</h2>
+    @include('auth._oauth')
     <form method="post" action="{{ route('login') }}">
         @csrf
         <label class="field">Email

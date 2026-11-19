@@ -7,6 +7,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\SavedGameController;
+use App\Http\Controllers\SocialAuthController;
 use App\Http\Middleware\EditorAuth;
 use Illuminate\Support\Facades\Route;
 
@@ -20,6 +21,8 @@ Route::middleware('guest')->group(function () {
     Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+    Route::get('/auth/{provider}', [SocialAuthController::class, 'redirect'])->whereIn('provider', ['google', 'nikniq'])->name('oauth.redirect');
+    Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])->whereIn('provider', ['google', 'nikniq'])->name('oauth.callback');
 });
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
