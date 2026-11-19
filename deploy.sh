@@ -2,6 +2,7 @@
 # Production deploy for Mini Castle Wolfenstein (shared hosting / SiteGround).
 #
 # Usage:  ./deploy.sh [--branch main] [--skip-seed] [--skip-composer]
+#         ./deploy.sh --rollback      # go back to the commit before the last deploy
 #
 # Run it from the checkout on the server. It pulls the latest commit, installs
 # production dependencies, runs migrations, refreshes the level data, rebuilds
@@ -13,14 +14,18 @@ set -euo pipefail
 BRANCH="main"
 RUN_SEED=1
 RUN_COMPOSER=1
-for arg in "$@"; do
-    case "$arg" in
-        --branch=*) BRANCH="${arg#*=}" ;;
-        --branch) shift; BRANCH="${1:-main}" ;;
+ROLLBACK=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --branch=*) BRANCH="${1#*=}" ;;
+        --branch) shift; BRANCH="${1:?--branch needs a value}" ;;
         --skip-seed) RUN_SEED=0 ;;
         --skip-composer) RUN_COMPOSER=0 ;;
-        -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+        --rollback) ROLLBACK=1 ;;
+        -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+        *) echo "Unknown option: $1 (try --help)" >&2; exit 2 ;;
     esac
+    shift
 done
 
 cd "$(dirname "$(readlink -f "$0")")"
@@ -43,29 +48,55 @@ if [ ! -f .env ]; then
     echo "    -> edit .env to set APP_URL before going live"
 fi
 
+# --- lock: one deploy at a time ------------------------------------------
+LOCK_DIR="storage/framework/deploy.lock"
+mkdir "$LOCK_DIR" 2>/dev/null || fail "another deploy is running (remove $LOCK_DIR if it is stale)"
+
 # --- deploy --------------------------------------------------------------
 UP_NEEDED=0
+STARTED_AT=$(date +%s)
+PREVIOUS_COMMIT="$(git rev-parse HEAD)"
 cleanup() {
+    status=$?
     if [ "$UP_NEEDED" = 1 ]; then
         log "Bringing the site back up"
         php artisan up >/dev/null || true
     fi
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+    if [ "$status" != 0 ]; then
+        printf '\033[1;31mDeploy failed.\033[0m Previous commit was %s; roll back with ./deploy.sh --rollback\n' "${PREVIOUS_COMMIT:0:7}" >&2
+    fi
 }
 trap cleanup EXIT
 
-log "Fetching origin/$BRANCH"
-git fetch --quiet origin "$BRANCH"
-if git diff --quiet HEAD "origin/$BRANCH" -- ; then
-    log "Already at origin/$BRANCH ($(git rev-parse --short HEAD)); redeploying anyway"
+if [ "$ROLLBACK" = 1 ]; then
+    [ -f storage/framework/deploy.previous ] || fail "no previous deploy recorded"
+    TARGET="$(cat storage/framework/deploy.previous)"
+    log "Rolling back to ${TARGET:0:7}"
+else
+    log "Fetching origin/$BRANCH"
+    git fetch --quiet origin "$BRANCH"
+    TARGET="origin/$BRANCH"
+    if git diff --quiet HEAD "$TARGET" -- ; then
+        log "Already at $TARGET ($(git rev-parse --short HEAD)); redeploying anyway"
+    else
+        log "Changes: $(git rev-parse --short HEAD) -> $(git rev-parse --short "$TARGET")"
+        git --no-pager log --oneline --no-decorate HEAD.."$TARGET" | head -20 | sed 's/^/    /'
+    fi
 fi
 
 log "Entering maintenance mode"
 php artisan down --retry=15 --secret="deploy-$(date +%s)" >/dev/null || true
 UP_NEEDED=1
 
-log "Checking out origin/$BRANCH"
-git checkout --quiet "$BRANCH"
-git reset --quiet --hard "origin/$BRANCH"
+if [ "$ROLLBACK" = 1 ]; then
+    git reset --quiet --hard "$TARGET"
+else
+    log "Checking out $TARGET"
+    git checkout --quiet "$BRANCH"
+    git reset --quiet --hard "$TARGET"
+fi
+echo "$PREVIOUS_COMMIT" > storage/framework/deploy.previous
 
 if [ "$RUN_COMPOSER" = 1 ]; then
     log "Installing PHP dependencies"
@@ -103,4 +134,21 @@ php artisan route:cache --quiet
 php artisan view:cache --quiet
 php artisan event:cache --quiet 2>/dev/null || true
 
-log "Deployed $(git rev-parse --short HEAD) on branch $BRANCH"
+log "Restarting queue workers"
+php artisan queue:restart --quiet 2>/dev/null || true
+
+log "Leaving maintenance mode"
+php artisan up >/dev/null
+UP_NEEDED=0
+
+APP_URL="$(grep '^APP_URL=' .env | cut -d= -f2- | tr -d '"' || true)"
+if [ -n "$APP_URL" ] && command -v curl >/dev/null; then
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$APP_URL/up" || echo 000)"
+    if [ "$code" = 200 ]; then
+        log "Health check OK ($APP_URL/up)"
+    else
+        printf '\033[1;33mWARNING:\033[0m health check returned HTTP %s for %s/up; check storage/logs\n' "$code" "$APP_URL" >&2
+    fi
+fi
+
+log "Deployed $(git rev-parse --short HEAD) on branch $BRANCH in $(( $(date +%s) - STARTED_AT ))s"
