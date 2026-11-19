@@ -155,7 +155,7 @@ export async function startGame() {
     let campaignId = null;
     let flash = 0, shake = 0, time = 0;
     let particles = [], popups = [];
-    let aoGrad = null; // cached ambient-occlusion gradients
+    let aoGrad = null, dustTimer = 0, roomCardAt = -9, roomCardName = ''; // cached ambient-occlusion gradients
     let onPortal = false; // standing on a portal / stairs / gate tile you arrived on: no trigger until you step off
     let VW = 640, VH = 320; // logical view size (map pixels)
     let deathAt = 0, doorsOpenedAt = -1, motes = [];
@@ -199,7 +199,7 @@ export async function startGame() {
     // ---- sprites -------------------------------------------------------
     function createSpriteSheet() {
         const c = document.createElement('canvas');
-        c.width = TILE * 36; c.height = TILE * 4;
+        c.width = TILE * 36; c.height = TILE * 5;
         const g = c.getContext('2d');
         const px = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
         const tile = (i, fn) => { g.save(); g.translate(i * TILE, 0); fn(); g.restore(); };
@@ -316,13 +316,13 @@ export async function startGame() {
         dirs.forEach((d, di) => { for (let f = 0; f < 4; f++) figure((di % 2) * 4 * TILE + f * TILE, TILE + Math.floor(di / 2) * TILE, d, f, playerCfg); });
         const disguiseCfg = { coat: '#5c6b4e', coatLight: '#7d8c6c', trousers: '#3e4a36', skin: '#f1c9a0', helmet: '#4d5050', helmetLight: '#7b8080', belt: true };
         dirs.forEach((d, di) => { for (let f = 0; f < 4; f++) figure((8 + (di % 2) * 4 + f) * TILE, TILE + Math.floor(di / 2) * TILE, d, f, disguiseCfg); });
-        dirs.forEach((d, di) => { for (let f = 0; f < 2; f++) figure(di * 2 * TILE + f * TILE, TILE * 3, d, f, guardCfg); });
+        dirs.forEach((d, di) => { for (let f = 0; f < 4; f++) figure((di * 4 + f) * TILE, TILE * 3, d, f, guardCfg); });
         const officerCfg = { coat: '#2e2e36', coatLight: '#4a4a56', trousers: '#1e1e26', skin: '#e8b990', helmet: '#1a1a1e', helmetLight: '#3a3a44', rifle: true, belt: true };
-        dirs.forEach((d, di) => { for (let f = 0; f < 2; f++) figure((8 + di * 2 + f) * TILE, TILE * 3, d, f, officerCfg); });
+        dirs.forEach((d, di) => { for (let f = 0; f < 4; f++) figure((16 + di * 4 + f) * TILE, TILE * 3, d, f, officerCfg); });
         const dog = (x, y, dir, frame) => {
             g.clearRect(x, y, TILE, TILE);
             g.fillStyle = 'rgba(0,0,0,0.35)'; g.beginPath(); g.ellipse(x + 16, y + 27, 10, 3, 0, 0, Math.PI * 2); g.fill();
-            const l = frame % 2 ? 2 : -2;
+            const l = [0, 2, 0, -2][frame % 4], hop = frame % 2 ? -1 : 0; y += hop;
             if (dir === 'left' || dir === 'right') {
                 const flip = dir === 'left';
                 g.save(); if (flip) { g.translate(x + TILE, y); g.scale(-1, 1); } else g.translate(x, y);
@@ -335,10 +335,10 @@ export async function startGame() {
                 px(x + 10 + l, y + 24, 3, 5, '#4b3217'); px(x + 19 - l, y + 24, 3, 5, '#4b3217');
             }
         };
-        dirs.forEach((d, di) => { for (let f = 0; f < 2; f++) dog((16 + di * 2 + f) * TILE, TILE * 3, d, f); });
+        dirs.forEach((d, di) => { for (let f = 0; f < 4; f++) dog((di * 4 + f) * TILE, TILE * 4, d, f); });
 
         // Dark 1px outline round every figure so characters read clearly against the floor.
-        const fig = g.getImageData(0, TILE, c.width, TILE * 3), src = new Uint8ClampedArray(fig.data), W = fig.width, H = fig.height;
+        const fig = g.getImageData(0, TILE, c.width, TILE * 4), src = new Uint8ClampedArray(fig.data), W = fig.width, H = fig.height;
         const solid = (x, y) => x >= 0 && y >= 0 && x < W && y < H && src[(y * W + x) * 4 + 3] > 200;
         for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
             const o = (y * W + x) * 4;
@@ -352,9 +352,9 @@ export async function startGame() {
         dirs.forEach((d, di) => {
             pf[d] = [0, 1, 2, 3].map((f) => ({ x: (di % 2) * 4 + f, y: 1 + Math.floor(di / 2) }));
             xf[d] = [0, 1, 2, 3].map((f) => ({ x: 8 + (di % 2) * 4 + f, y: 1 + Math.floor(di / 2) }));
-            gf[d] = [0, 1].map((f) => ({ x: di * 2 + f, y: 3 }));
-            of[d] = [0, 1].map((f) => ({ x: 8 + di * 2 + f, y: 3 }));
-            df[d] = [0, 1].map((f) => ({ x: 16 + di * 2 + f, y: 3 }));
+            gf[d] = [0, 1, 2, 3].map((f) => ({ x: di * 4 + f, y: 3 }));
+            of[d] = [0, 1, 2, 3].map((f) => ({ x: 16 + di * 4 + f, y: 3 }));
+            df[d] = [0, 1, 2, 3].map((f) => ({ x: di * 4 + f, y: 4 }));
         });
         return { img, frames: { tiles: { [WALL]: 4, [DOOR]: 5, [KEY]: 6, [EXIT]: 7, [TREASURE]: 8, [HIDE]: 9, [PORTAL]: 10, [SPIKES]: 11, [TRIPWIRE]: 14, [TRAPDOOR]: 15, [GAS]: 16, [CRUMBLE]: 17, [PIT]: 18, [PLANS]: 19, [GUN]: 20, [AMMO]: 21, [PRISONER]: 22, [CHEST]: 32, [CRACKED]: 33, [FUSE]: 34 }, spikes: [11, 12, 13], wallFace: 23, decals: [24, 25, 26, 27], decor: [28, 29, 30], doorOpen: 31, player: pf, disguised: xf, guard: gf, officer: of, dog: df } };
     }
@@ -514,6 +514,7 @@ export async function startGame() {
         levelStates.set(levelIndex, { map: map.map((r) => r.slice()), hasKey: player.hasKey, treasureFound, levelScore, alarmed: levelAlarmed, bodies: bodies.map((b) => ({ ...b })), guards: guards.map((g) => ({ ...g })), blades: blades.map((b) => ({ ...b })), lights: lights.map((l) => ({ ...l, notice: 0 })) });
     }
     function loadLevel(i, { fromPortal = null, resume = false } = {}) {
+        if (i !== levelIndex || !roomCardName) { roomCardAt = time; roomCardName = levels[i].name; }
         levelIndex = i;
         const lvl = levels[i];
         const st = resume ? roomState(i) : makeRoomState(i);
@@ -560,6 +561,7 @@ export async function startGame() {
     }
     function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch {} hasSave = false; if (api.save) { clearTimeout(pushTimer); fetch(api.save, { method: 'DELETE', headers: serverHeaders() }).catch(() => {}); } }
     function resumeCampaign() {
+        roomCardName = ''; // show the room card again when play begins
         let d = null; try { d = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch {}
         if (!d || d.v !== 2 || d.levelIndex >= levels.length) { clearSave(); return false; }
         ensureAudio();
@@ -575,6 +577,7 @@ export async function startGame() {
     // ?level=N starts a new campaign in that room (used by the editor's play-test link)
     const startAt = (() => { const n = +new URLSearchParams(location.search).get('level'); const i = levels.findIndex((l) => l.number === n); return i >= 0 ? i : 0; })();
     function startCampaign({ dailyRun = false } = {}) {
+        roomCardName = ''; // show the room card again when play begins
         clearSave();
         mods = new Set(dailyRun && daily ? daily.modifiers.map((m) => m.key) : []); dailyDate = dailyRun && daily ? daily.date : null;
         if (dailyRun) difficulty = 'normal';
@@ -1166,6 +1169,7 @@ export async function startGame() {
         }
         if (moving) {
             player.frameTimer += dt * (player.sprinting ? 1.6 : 1);
+            if (player.sprinting && (dustTimer -= dt) <= 0) { dustTimer = 0.07; spawnParticles(player.px + 16, player.py + 29, 2, 'rgba(170,160,140,0.6)', 22); }
             if (player.frameTimer > 0.12) { player.frameTimer = 0; player.frameIdx = (player.frameIdx + 1) % 4; }
             stepTimer += dt; if (stepTimer > (player.sprinting ? 0.18 : 0.3)) { stepTimer = 0; playSound('step'); }
         } else { player.frameIdx = 0; player.frameTimer = 0; }
@@ -1318,7 +1322,7 @@ export async function startGame() {
                 if (moveGuardToward(g, target[0] * TILE, target[1] * TILE)) { g.i = (g.i + 1) % g.patrol.length; g.wait = WAYPOINT_WAIT; }
             }
             g.frameTimer += dt;
-            if (moving && g.frameTimer > (g.state === 'alert' ? 0.12 : 0.2)) { g.frameTimer = 0; g.frameIdx = (g.frameIdx + 1) % 2; }
+            if (moving && g.frameTimer > (g.state === 'alert' ? 0.08 : 0.14)) { g.frameTimer = 0; g.frameIdx = (g.frameIdx + 1) % 4; }
             if (!moving) g.frameIdx = 0;
             if (Math.hypot(pcx - (g.px + TILE / 2), pcy - (g.py + TILE / 2)) < 14 && !(player.disguised && !player.carrying && g.type !== 'dog' && g.state !== 'alert')) { die(g.type === 'dog' ? 'Mauled by a guard dog!' : 'Caught by a guard!'); return; }
         }
@@ -1414,6 +1418,21 @@ export async function startGame() {
         ctx.fillStyle = vignette.gr; ctx.fillRect(0, 0, VW, VH);
     }
     let vignette = null;
+    /** Fade in from black on entering a room, with the room's name drifting in and out. */
+    function drawRoomTransition() {
+        if (phase !== 'playing') return;
+        const t = time - roomCardAt;
+        if (t < 0.4) { ctx.fillStyle = `rgba(0,0,0,${1 - t / 0.4})`; ctx.fillRect(0, 0, VW, VH); }
+        if (t > 0.15 && t < 2.2) {
+            const a = Math.min(1, (t - 0.15) / 0.35, (2.2 - t) / 0.5), y = VH * 0.28 - (1 - a) * 6;
+            ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center';
+            const w = Math.min(VW - 40, 300); ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(VW / 2 - w / 2, y - 30, w, 46);
+            ctx.fillStyle = '#c8a050'; ctx.fillRect(VW / 2 - w / 2 + 12, y - 30, w - 24, 1); ctx.fillRect(VW / 2 - w / 2 + 12, y + 15, w - 24, 1);
+            ctx.font = '14px VT323, monospace'; ctx.fillStyle = '#b8b0a0'; ctx.fillText(`ROOM ${levelIndex + 1} OF ${levels.length}`, VW / 2, y - 14);
+            ctx.font = 'bold 20px Cinzel, Georgia, serif'; ctx.fillStyle = '#f2d06b'; ctx.fillText(roomCardName, VW / 2, y + 8);
+            ctx.restore();
+        }
+    }
     /** Vision cone clipped against walls, using the guard's real sight range, so what you see is what they see. */
     function conePoints(g) {
         const cx = g.px + TILE / 2, cy = g.py + TILE / 2, a = DIR_ANGLE[g.dir];
@@ -1631,6 +1650,7 @@ export async function startGame() {
         for (const m of motes) { m.x += Math.sin(time * 0.7 + m.ph) * 0.15; m.y -= m.s * 0.12; if (m.y < -4) { m.y = VH + 4; m.x = Math.random() * VW; } ctx.fillStyle = `rgba(255,240,200,${0.08 + 0.1 * Math.sin(time * 1.3 + m.ph) ** 2})`; ctx.fillRect(m.x, m.y, 1.5, 1.5); }
         drawLighting();
         drawGlow();
+        drawRoomTransition();
         // beginner guide (H): where to go next and where the patrols walk
         if (assistOn() && phase === 'playing') {
             const find = (tile) => { for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === tile) return [x, y]; return null; };
