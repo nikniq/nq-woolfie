@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialUser;
 use Mockery;
@@ -41,15 +43,18 @@ class SocialAuthTest extends TestCase
         $this->get('/auth/nikniq')->assertNotFound();
     }
 
-    public function test_nikniq_redirect_goes_to_the_passport_authorize_endpoint(): void
+    public function test_nikniq_redirect_goes_to_the_portal_sso_with_pkce(): void
     {
-        config(['services.nikniq.base_url' => 'https://nikniq.test']);
+        config(['services.nikniq.url' => 'https://nikniq.test']);
 
-        $response = $this->get('/auth/nikniq');
+        $location = $this->get('/auth/nikniq')->assertRedirect()->headers->get('Location');
 
-        $response->assertRedirect();
-        $this->assertStringStartsWith('https://nikniq.test/oauth/authorize?', $response->headers->get('Location'));
-        $this->assertStringContainsString('client_id=nikniq-client', $response->headers->get('Location'));
+        $this->assertStringStartsWith('https://nikniq.test/sso/authorize?', $location);
+        parse_str(parse_url($location, PHP_URL_QUERY), $query);
+        $this->assertSame('nikniq-client', $query['client_id']);
+        $this->assertSame(url('/auth/callback'), $query['redirect_uri']);
+        $this->assertSame('S256', $query['code_challenge_method']);
+        $this->assertSame(session('nikniq_state'), $query['state']);
     }
 
     public function test_new_google_user_gets_an_account_with_a_unique_player_name(): void
@@ -66,27 +71,43 @@ class SocialAuthTest extends TestCase
         $this->assertAuthenticatedAs($user);
     }
 
-    public function test_nikniq_sign_in_links_an_existing_account_with_the_same_email(): void
+    public function test_nikniq_sign_in_exchanges_the_code_and_links_an_existing_account(): void
     {
+        config(['services.nikniq.url' => 'https://nikniq.test']);
+        Http::fake(['nikniq.test/api/sso/token' => Http::response(['player' => ['id' => 42, 'name' => 'Someone', 'email' => 'BJ@example.com']])]);
         $existing = User::factory()->create(['email' => 'bj@example.com']);
-        $this->fakeProviderUser('nikniq', ['id' => '42', 'name' => 'Someone', 'email' => 'bj@example.com']);
 
-        $this->get('/auth/nikniq/callback')->assertRedirect('/play');
+        $this->withSession(['nikniq_state' => 'abc', 'nikniq_verifier' => 'verifier'])
+            ->get('/auth/callback?state=abc&code=the-code')
+            ->assertRedirect('/play');
 
+        Http::assertSent(fn (Request $request) => $request['code'] === 'the-code' && $request['code_verifier'] === 'verifier' && $request['redirect_uri'] === url('/auth/callback'));
         $this->assertSame('42', $existing->fresh()->nikniq_id);
         $this->assertSame(1, User::count());
         $this->assertAuthenticatedAs($existing);
     }
 
-    public function test_provider_without_email_or_failed_callback_returns_to_login(): void
+    public function test_nikniq_callback_with_a_wrong_state_is_rejected(): void
+    {
+        Http::fake();
+
+        $this->withSession(['nikniq_state' => 'abc', 'nikniq_verifier' => 'v'])
+            ->get('/auth/callback?state=forged&code=x')
+            ->assertRedirect('/login')->assertSessionHasErrors('email');
+
+        Http::assertNothingSent();
+        $this->assertGuest();
+    }
+
+    public function test_google_without_email_or_failed_callback_returns_to_login(): void
     {
         $this->fakeProviderUser('google', ['id' => 'g-2', 'name' => 'No Mail', 'email' => null]);
         $this->get('/auth/google/callback')->assertRedirect('/login')->assertSessionHasErrors('email');
 
         $driver = Mockery::mock();
         $driver->shouldReceive('user')->andThrow(new RuntimeException('denied'));
-        Socialite::shouldReceive('driver')->with('nikniq')->andReturn($driver);
-        $this->get('/auth/nikniq/callback')->assertRedirect('/login')->assertSessionHasErrors('email');
+        Socialite::shouldReceive('driver')->with('google')->andReturn($driver);
+        $this->get('/auth/google/callback')->assertRedirect('/login')->assertSessionHasErrors('email');
 
         $this->assertGuest();
         $this->assertSame(0, User::count());

@@ -41,11 +41,12 @@ return [
         'redirect' => '/auth/google/callback',
     ],
 
+    // Sign in with nikniq.com (portal SSO with PKCE). Copy Woolfie's client id from the portal's /admin/games.
     'nikniq' => [
-        'base_url' => env('NIKNIQ_URL', 'https://nikniq.com'),
+        'url' => env('NIKNIQ_URL', 'https://nikniq.com'),
         'client_id' => env('NIKNIQ_CLIENT_ID'),
         'client_secret' => env('NIKNIQ_CLIENT_SECRET'),
-        'redirect' => '/auth/nikniq/callback',
+        'redirect' => env('NIKNIQ_REDIRECT_URI'),
     ],
 
 ];
