@@ -155,6 +155,7 @@ export async function startGame() {
     let campaignId = null;
     let flash = 0, shake = 0, time = 0;
     let particles = [], popups = [];
+    let aoGrad = null; // cached ambient-occlusion gradients
     let onPortal = false; // standing on a portal / stairs / gate tile you arrived on: no trigger until you step off
     let VW = 640, VH = 320; // logical view size (map pixels)
     let deathAt = 0, doorsOpenedAt = -1, motes = [];
@@ -203,14 +204,20 @@ export async function startGame() {
         const px = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
         const tile = (i, fn) => { g.save(); g.translate(i * TILE, 0); fn(); g.restore(); };
 
-        // 0-3 floor variants: flagstones
+        // 0-3 floor variants: bevelled flagstones with mortar, grit and the odd crack
         for (let v = 0; v < 4; v++) tile(v, () => {
-            px(0, 0, TILE, TILE, '#24242a');
+            px(0, 0, TILE, TILE, '#17171c'); // mortar
             const r = (a) => hash(v * 7 + a, v * 13 + a * 3);
-            px(1, 1, 14, 14, r(1) > 0.5 ? '#2b2b32' : '#282830'); px(17, 1, 14, 14, r(2) > 0.5 ? '#2a2a31' : '#2d2d34');
-            px(1, 17, 14, 14, r(3) > 0.5 ? '#2c2c33' : '#29292f'); px(17, 17, 14, 14, r(4) > 0.5 ? '#2b2b31' : '#2e2e35');
-            if (r(5) > 0.6) px(4 + Math.floor(r(6) * 20), 4 + Math.floor(r(7) * 20), 3, 2, '#1d1d22');
-            if (r(8) > 0.7) px(6 + Math.floor(r(9) * 18), 8 + Math.floor(r(10) * 16), 2, 2, '#35353d');
+            const stones = v % 2 ? [[1, 1, 14, 14], [17, 1, 14, 9], [17, 12, 14, 19], [1, 17, 14, 14]] : [[1, 1, 19, 13], [22, 1, 9, 13], [1, 16, 9, 15], [12, 16, 19, 15]];
+            stones.forEach(([sx, sy, w, h], k) => {
+                const shade = 40 + Math.floor(r(k + 1) * 9);
+                px(sx, sy, w, h, `rgb(${shade},${shade},${shade + 7})`);
+                px(sx, sy, w, 1, `rgb(${shade + 12},${shade + 12},${shade + 19})`); px(sx, sy, 1, h, `rgb(${shade + 7},${shade + 7},${shade + 14})`);
+                px(sx, sy + h - 1, w, 1, `rgb(${shade - 12},${shade - 12},${shade - 6})`); px(sx + w - 1, sy, 1, h, `rgb(${shade - 9},${shade - 9},${shade - 3})`);
+                for (let n = 0; n < 5; n++) { const gx = sx + 2 + Math.floor(r(k * 9 + n + 20) * (w - 4)), gy = sy + 2 + Math.floor(r(k * 5 + n + 40) * (h - 4)); px(gx, gy, 1, 1, r(n + k + 60) > 0.5 ? `rgb(${shade + 9},${shade + 9},${shade + 15})` : `rgb(${shade - 8},${shade - 8},${shade - 3})`); }
+            });
+            if (r(5) > 0.55) { g.strokeStyle = 'rgba(10,10,14,0.7)'; g.lineWidth = 1; g.beginPath(); const cx = 4 + Math.floor(r(6) * 20), cy = 4 + Math.floor(r(7) * 20); g.moveTo(cx + 0.5, cy + 0.5); g.lineTo(cx + 4.5, cy + 2.5); g.lineTo(cx + 6.5, cy + 6.5); g.stroke(); }
+            if (r(8) > 0.75) { g.fillStyle = 'rgba(70,90,50,0.35)'; g.fillRect(Math.floor(r(9) * 26), Math.floor(r(10) * 26), 4, 2); } // moss in the mortar
         });
         // 4 wall: stone blocks with lit top edge and dark base
         tile(4, () => {
@@ -329,6 +336,16 @@ export async function startGame() {
             }
         };
         dirs.forEach((d, di) => { for (let f = 0; f < 2; f++) dog((16 + di * 2 + f) * TILE, TILE * 3, d, f); });
+
+        // Dark 1px outline round every figure so characters read clearly against the floor.
+        const fig = g.getImageData(0, TILE, c.width, TILE * 3), src = new Uint8ClampedArray(fig.data), W = fig.width, H = fig.height;
+        const solid = (x, y) => x >= 0 && y >= 0 && x < W && y < H && src[(y * W + x) * 4 + 3] > 200;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+            const o = (y * W + x) * 4;
+            if (src[o + 3] > 200 || (x % TILE) === 0 || (x % TILE) === TILE - 1) continue;
+            if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1)) { fig.data[o] = 12; fig.data[o + 1] = 10; fig.data[o + 2] = 16; fig.data[o + 3] = 235; }
+        }
+        g.putImageData(fig, 0, TILE);
 
         const img = new Image(); img.src = c.toDataURL();
         const pf = {}, gf = {}, of = {}, df = {}, xf = {};
@@ -1350,9 +1367,21 @@ export async function startGame() {
             if (t === PLANS && !player.code) { ctx.fillStyle = 'rgba(40,40,48,0.82)'; ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); ctx.strokeStyle = '#8a8a96'; ctx.strokeRect(px + 4.5, py + 4.5, TILE - 9, TILE - 9); ctx.fillStyle = '#e8c33a'; ctx.fillRect(px + 12, py + 15, 8, 7); ctx.strokeStyle = '#e8c33a'; ctx.beginPath(); ctx.arc(px + 16, py + 15, 3, Math.PI, 0); ctx.stroke(); }
             if (t === TREASURE || t === KEY || (t === PLANS && player.code)) { const pulse = 0.25 + 0.2 * Math.sin(time * 5 + x); ctx.fillStyle = `rgba(255,220,80,${pulse * 0.25})`; ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); }
         }
-        // wall drop shadows onto floor below
-        ctx.fillStyle = 'rgba(0,0,0,0.35)';
-        for (let y = 0; y < map.length - 1; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === WALL && map[y + 1][x] !== WALL) ctx.fillRect(x * TILE, (y + 1) * TILE, TILE, 6);
+        // soft ambient occlusion: walls cast a fading shadow onto the floor below and beside them
+        if (!aoGrad) {
+            aoGrad = { down: ctx.createLinearGradient(0, 0, 0, 14), right: ctx.createLinearGradient(0, 0, 8, 0), left: ctx.createLinearGradient(8, 0, 0, 0) };
+            for (const k in aoGrad) { aoGrad[k].addColorStop(0, 'rgba(0,0,0,0.5)'); aoGrad[k].addColorStop(1, 'rgba(0,0,0,0)'); }
+        }
+        const isWall = (x, y) => { const t = tileAt(x, y); return t === WALL || t === CRACKED; };
+        for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) {
+            if (isWall(x, y)) continue;
+            const px = x * TILE, py = y * TILE;
+            ctx.save(); ctx.translate(px, py);
+            if (isWall(x, y - 1)) { ctx.fillStyle = aoGrad.down; ctx.fillRect(0, 0, TILE, 14); }
+            if (isWall(x - 1, y)) { ctx.fillStyle = aoGrad.right; ctx.fillRect(0, 0, 8, TILE); }
+            if (isWall(x + 1, y)) { ctx.translate(TILE - 8, 0); ctx.fillStyle = aoGrad.left; ctx.fillRect(0, 0, 8, TILE); }
+            ctx.restore();
+        }
         if (torchLevel !== levelIndex) { torchCache = torches(); torchLevel = levelIndex; }
         for (const [x, y] of torchCache) {
             const fl = Math.sin(time * 9 + x) * 1.5;
@@ -1364,6 +1393,27 @@ export async function startGame() {
             for (let i = 0; i < 3; i++) { const tt = (time * 0.6 + i * 0.33 + x * 0.1) % 1; ctx.fillStyle = `rgba(200,200,210,${0.12 * (1 - tt)})`; ctx.beginPath(); ctx.arc(x * TILE + 16 + Math.sin(time * 2 + i) * 3, y * TILE + 8 - tt * 14, 2 + tt * 3, 0, Math.PI * 2); ctx.fill(); }
         }
     }
+    /** Coloured light added on top of the darkness: warm torches, cool exits, glinting loot, and a red wash in an alarm. */
+    function drawGlow() {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        const glow = (x, y, r, rgb, a) => { const gr = ctx.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${rgb},${a})`); gr.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = gr; ctx.fillRect(x - r, y - r, r * 2, r * 2); };
+        if (!powerOut()) for (const [x, y] of torchCache ?? []) glow(x * TILE + 16, y * TILE + 22, 84 + Math.sin(time * 9 + x) * 5, '255,130,40', 0.1 + Math.sin(time * 13 + y) * 0.012);
+        for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) {
+            const t = map[y][x], cx = x * TILE + 16, cy = y * TILE + 16;
+            if (t === EXIT || t === PORTAL) glow(cx, cy, 56, '80,140,255', 0.18 + 0.05 * Math.sin(time * 2 + x));
+            else if (t === TREASURE || t === KEY || t === PLANS || t === GUN || t === AMMO) {
+                glow(cx, cy, 26, '255,210,90', 0.12);
+                const ph = (time * 0.8 + hash(x, y) * 5) % 2.5; // a brief sparkle every couple of seconds
+                if (ph < 0.35) { const k = Math.sin((ph / 0.35) * Math.PI), sx = cx + 6 - hash(y, x) * 12, sy = cy - 8; ctx.fillStyle = `rgba(255,250,220,${k})`; ctx.fillRect(sx - 3 * k, sy - 0.5, 6 * k, 1); ctx.fillRect(sx - 0.5, sy - 3 * k, 1, 6 * k); }
+            }
+        }
+        if (muzzle > 0) glow(player.px + 16, player.py + 16, 120, '255,200,120', 0.35);
+        ctx.restore();
+        if (alarmUntil > time) { ctx.fillStyle = `rgba(200,20,20,${0.06 + 0.06 * Math.abs(Math.sin(time * 5))})`; ctx.fillRect(0, 0, VW, VH); }
+        if (!vignette || vignette.w !== VW || vignette.h !== VH) { const gr = ctx.createRadialGradient(VW / 2, VH / 2, Math.min(VW, VH) * 0.35, VW / 2, VH / 2, Math.hypot(VW, VH) / 2); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.45)'); vignette = { w: VW, h: VH, gr }; }
+        ctx.fillStyle = vignette.gr; ctx.fillRect(0, 0, VW, VH);
+    }
+    let vignette = null;
     /** Vision cone clipped against walls, using the guard's real sight range, so what you see is what they see. */
     function conePoints(g) {
         const cx = g.px + TILE / 2, cy = g.py + TILE / 2, a = DIR_ANGLE[g.dir];
@@ -1424,18 +1474,26 @@ export async function startGame() {
         let size = castle ? 38 : 30;
         ctx.font = `bold ${size}px Cinzel, Georgia, serif`;
         while (size > 16 && ctx.measureText(title).width > VW - 40) { size -= 2; ctx.font = `bold ${size}px Cinzel, Georgia, serif`; }
-        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(title, VW / 2 + 2, VH / 2 - 32);
-        ctx.fillStyle = castle ? '#f2d06b' : '#fff'; ctx.fillText(title, VW / 2, VH / 2 - 34);
-        ctx.font = '19px VT323, monospace'; ctx.fillStyle = '#e6e6e6';
-        // wrap long lines to the room width
-        const wrapped = [];
-        for (const l of lines) {
-            const words = String(l).split(' '); let cur = '';
-            for (const w of words) { const t = cur ? `${cur} ${w}` : w; if (ctx.measureText(t).width > VW - 48 && cur) { wrapped.push(cur); cur = w; } else cur = t; }
-            wrapped.push(cur);
-        }
-        wrapped.forEach((l, i) => ctx.fillText(l, VW / 2, VH / 2 + 4 + i * 22));
-        if (sub) { ctx.fillStyle = '#ffe066'; ctx.font = '21px VT323, monospace'; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(time * 3); ctx.fillText(sub, VW / 2, VH - 16); ctx.globalAlpha = 1; }
+        // Lay the block out from its content: shrink body text until title, lines and prompt all fit without overlapping.
+        let font = 19, lineH = 22, wrapped = [];
+        const wrap = () => {
+            ctx.font = `${font}px VT323, monospace`; wrapped = [];
+            for (const l of lines) {
+                const words = String(l).split(' '); let cur = '';
+                for (const w of words) { const t = cur ? `${cur} ${w}` : w; if (ctx.measureText(t).width > VW - 48 && cur) { wrapped.push(cur); cur = w; } else cur = t; }
+                wrapped.push(cur);
+            }
+        };
+        const subH = sub ? 34 : 0, total = () => size + 14 + wrapped.length * lineH + subH;
+        wrap();
+        while (total() > VH - 16 && font > 14) { font -= 1; lineH = Math.round(font * 1.15); wrap(); }
+        const top = Math.max(8, (VH - total()) / 2), titleY = top + size * 0.85;
+        ctx.font = `bold ${size}px Cinzel, Georgia, serif`;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(title, VW / 2 + 2, titleY + 2);
+        ctx.fillStyle = castle ? '#f2d06b' : '#fff'; ctx.fillText(title, VW / 2, titleY);
+        ctx.font = `${font}px VT323, monospace`; ctx.fillStyle = '#e6e6e6';
+        wrapped.forEach((l, k) => ctx.fillText(l, VW / 2, titleY + 14 + font * 0.8 + k * lineH));
+        if (sub) { ctx.fillStyle = '#ffe066'; ctx.font = '21px VT323, monospace'; ctx.globalAlpha = 0.7 + 0.3 * Math.sin(time * 3); ctx.fillText(sub, VW / 2, Math.min(VH - 12, titleY + 14 + wrapped.length * lineH + 26)); ctx.globalAlpha = 1; }
         ctx.textAlign = 'left';
     }
 
@@ -1572,6 +1630,7 @@ export async function startGame() {
         // ambient dust motes
         for (const m of motes) { m.x += Math.sin(time * 0.7 + m.ph) * 0.15; m.y -= m.s * 0.12; if (m.y < -4) { m.y = VH + 4; m.x = Math.random() * VW; } ctx.fillStyle = `rgba(255,240,200,${0.08 + 0.1 * Math.sin(time * 1.3 + m.ph) ** 2})`; ctx.fillRect(m.x, m.y, 1.5, 1.5); }
         drawLighting();
+        drawGlow();
         // beginner guide (H): where to go next and where the patrols walk
         if (assistOn() && phase === 'playing') {
             const find = (tile) => { for (let y = 0; y < map.length; y++) for (let x = 0; x < map[0].length; x++) if (map[y][x] === tile) return [x, y]; return null; };
