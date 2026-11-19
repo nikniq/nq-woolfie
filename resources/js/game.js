@@ -1226,6 +1226,7 @@ export async function startGame() {
             const cleared = g.type === 'officer' && g.papersAt !== undefined && time - g.papersAt < PAPERS_GRACE;
             const disguiseFactor = player.disguised && !player.carrying && !alarmOn && g.state !== 'alert' ? (cleared ? 0.15 : DISGUISE_SIGHT[g.type ?? 'guard']) : 1;
             const sight = VIEW_DIST * gt.sight * diff().sight * disguiseFactor * (lockdown ? LOCKDOWN.sight : 1) * (mod('eagle_eyes') ? 1.3 : 1) * (powerOut() && g.state !== 'alert' ? POWER_SIGHT : 1);
+            g.sight = sight;
             let inView = false;
             if (d < sight && !player.hidden) {
                 let ang = Math.atan2(vy, vx) - DIR_ANGLE[g.dir]; ang = Math.atan2(Math.sin(ang), Math.cos(ang));
@@ -1363,14 +1364,30 @@ export async function startGame() {
             for (let i = 0; i < 3; i++) { const tt = (time * 0.6 + i * 0.33 + x * 0.1) % 1; ctx.fillStyle = `rgba(200,200,210,${0.12 * (1 - tt)})`; ctx.beginPath(); ctx.arc(x * TILE + 16 + Math.sin(time * 2 + i) * 3, y * TILE + 8 - tt * 14, 2 + tt * 3, 0, Math.PI * 2); ctx.fill(); }
         }
     }
-    function drawCone(g) {
+    /** Vision cone clipped against walls, using the guard's real sight range, so what you see is what they see. */
+    function conePoints(g) {
         const cx = g.px + TILE / 2, cy = g.py + TILE / 2, a = DIR_ANGLE[g.dir];
-        const reach = VIEW_DIST * (powerOut() && g.state !== 'alert' ? POWER_SIGHT : 1);
+        const reach = g.sight ?? VIEW_DIST, rays = 36, step = 4, pts = [[cx, cy]];
+        const blocks = (x, y) => { const t = tileAt(Math.floor(x / TILE), Math.floor(y / TILE)); return t === WALL || t === CRACKED || (t === DOOR && !player.hasKey); };
+        for (let i = 0; i <= rays; i++) {
+            const ang = a - VIEW_FOV / 2 + (VIEW_FOV * i) / rays, dx = Math.cos(ang), dy = Math.sin(ang);
+            let r = step; while (r < reach && !blocks(cx + dx * r, cy + dy * r)) r += step;
+            pts.push([cx + dx * Math.min(r, reach), cy + dy * Math.min(r, reach)]);
+        }
+        return pts;
+    }
+    function tracePoly(c, pts) { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]); c.closePath(); }
+    function drawCone(g) {
+        g.cone = conePoints(g);
+        const cx = g.px + TILE / 2, cy = g.py + TILE / 2, reach = g.sight ?? VIEW_DIST;
         const grad = ctx.createRadialGradient(cx, cy, 8, cx, cy, reach);
-        if (g.state === 'alert') { grad.addColorStop(0, 'rgba(255,50,50,0.30)'); grad.addColorStop(1, 'rgba(255,50,50,0.02)'); }
-        else if (g.state === 'suspicious') { grad.addColorStop(0, 'rgba(255,200,60,0.28)'); grad.addColorStop(1, 'rgba(255,200,60,0.02)'); }
-        else { grad.addColorStop(0, 'rgba(255,230,120,0.22)'); grad.addColorStop(1, 'rgba(255,230,120,0.0)'); }
-        ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, reach, a - VIEW_FOV / 2, a + VIEW_FOV / 2); ctx.closePath(); ctx.fill();
+        if (g.state === 'alert') { grad.addColorStop(0, 'rgba(255,50,50,0.30)'); grad.addColorStop(1, 'rgba(255,50,50,0.04)'); }
+        else if (g.state === 'suspicious') { grad.addColorStop(0, 'rgba(255,200,60,0.28)'); grad.addColorStop(1, 'rgba(255,200,60,0.04)'); }
+        else { grad.addColorStop(0, 'rgba(255,230,120,0.22)'); grad.addColorStop(1, 'rgba(255,230,120,0.03)'); }
+        ctx.fillStyle = grad; tracePoly(ctx, g.cone); ctx.fill();
+        // A faint rim marks exactly where sight ends.
+        ctx.strokeStyle = g.state === 'alert' ? 'rgba(255,80,80,0.35)' : 'rgba(255,230,120,0.18)'; ctx.lineWidth = 1;
+        ctx.beginPath(); g.cone.slice(1).forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
     }
     function drawLighting() {
         lctx.globalCompositeOperation = 'source-over';
@@ -1386,7 +1403,7 @@ export async function startGame() {
         for (const b of bullets) hole(b.x, b.y, 24, 0.6);
         for (const b of enemyBullets) hole(b.x, b.y, 24, 0.6);
         for (const g of guards) if (g.flash > 0) hole(g.px + 16, g.py + 16, 160, 0.8);
-        for (const g of guards) { const cx = g.px + 16, cy = g.py + 16, a = DIR_ANGLE[g.dir]; lctx.fillStyle = 'rgba(0,0,0,0.55)'; lctx.beginPath(); lctx.moveTo(cx, cy); lctx.arc(cx, cy, VIEW_DIST * 0.9, a - VIEW_FOV / 2, a + VIEW_FOV / 2); lctx.closePath(); lctx.fill(); hole(cx, cy, 40, 0.6); }
+        for (const g of guards) { lctx.fillStyle = 'rgba(0,0,0,0.55)'; tracePoly(lctx, g.cone ?? conePoints(g)); lctx.fill(); hole(g.px + 16, g.py + 16, 40, 0.6); }
         ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(light, 0, 0); ctx.restore();
     }
     function castleSilhouette() {
