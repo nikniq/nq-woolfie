@@ -6,6 +6,15 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="description" content="@yield('description', 'Woolfie is a top-down stealth game in your browser: sneak through twelve castle rooms, steal the war plans and escape.')">
     <title>@yield('title', 'Woolfie')</title>
+    <link rel="canonical" href="{{ url()->current() }}">
+    <meta property="og:site_name" content="Woolfie">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="@yield('title', 'Woolfie')">
+    <meta property="og:description" content="@yield('description', 'Woolfie is a top-down stealth game in your browser: sneak through twelve castle rooms, steal the war plans and escape.')">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:image" content="{{ asset('images/screens/room-5.jpg') }}">
+    <meta name="twitter:card" content="summary_large_image">
+    @if (request()->is('admin*', 'editor*'))<meta name="robots" content="noindex">@endif
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&family=VT323&display=swap" rel="stylesheet">

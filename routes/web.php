@@ -2,6 +2,11 @@
 
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\GameRunController as AdminGameRunController;
+use App\Http\Controllers\Admin\HealthController;
+use App\Http\Controllers\Admin\LogsController;
+use App\Http\Controllers\Admin\MarketingController;
+use App\Http\Controllers\Admin\MonitoringController;
+use App\Http\Controllers\Admin\ReportsController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EditorController;
@@ -11,6 +16,7 @@ use App\Http\Controllers\LeaderboardController;
 use App\Http\Controllers\NikniqController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\SavedGameController;
+use App\Http\Controllers\SeoController;
 use App\Http\Controllers\SocialAuthController;
 use App\Http\Middleware\EditorAuth;
 use App\Http\Middleware\EnsureUserIsAdmin;
@@ -19,6 +25,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/play', [GameController::class, 'index'])->name('game');
 Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('sitemap');
+Route::get('/robots.txt', [SeoController::class, 'robots'])->name('robots');
+Route::get('/health', [HealthController::class, 'json'])->middleware('throttle:30,1')->name('health');
 Route::get('/players/{name}', [PlayerController::class, 'show'])->name('player');
 
 Route::middleware('guest')->group(function () {
@@ -60,4 +69,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', EnsureUserIsAdmin::c
     Route::delete('users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
     Route::get('runs', [AdminGameRunController::class, 'index'])->name('runs.index');
     Route::delete('runs/{run}', [AdminGameRunController::class, 'destroy'])->name('runs.destroy');
+    Route::get('health', [HealthController::class, 'index'])->name('health');
+    Route::get('monitoring', [MonitoringController::class, 'index'])->name('monitoring');
+    Route::get('logs', [LogsController::class, 'index'])->name('logs');
+    Route::get('reports', [ReportsController::class, 'index'])->name('reports.index');
+    Route::get('reports/export/{dataset}', [ReportsController::class, 'export'])->name('reports.export');
+    Route::get('marketing', [MarketingController::class, 'index'])->name('marketing');
 });
