@@ -25,7 +25,10 @@
                     <a href="{{ route('home') }}#features">Features</a>
                     <a href="{{ route('home') }}#how">How it works</a>
                     <a href="{{ route('leaderboard') }}" @class(['active' => request()->routeIs('leaderboard')])>Leaderboard</a>
-                    @if (config('game.editor_password') !== '')
+                    @if (auth()->user()?->is_admin)
+                        <a href="{{ route('admin.dashboard') }}" @class(['active' => request()->routeIs('admin.*')])>Admin</a>
+                    @endif
+                    @if (config('game.editor_password') !== '' || auth()->user()?->is_admin)
                         <a href="{{ route('editor.index') }}" @class(['active' => request()->routeIs('editor.*')])>Editor</a>
                     @endif
                     <a href="https://nikniq.com" target="_blank" rel="noopener">NikNiq ↗</a>

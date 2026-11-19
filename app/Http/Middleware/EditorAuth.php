@@ -10,6 +10,9 @@ class EditorAuth
 {
     public function handle(Request $request, Closure $next): Response
     {
+        if ($request->user()?->is_admin) {
+            return $next($request);
+        }
         if (config('game.editor_password') === '') {
             abort(403, 'The room editor is disabled. Set EDITOR_PASSWORD in .env to enable it.');
         }

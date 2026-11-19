@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\GameRunController as AdminGameRunController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EditorController;
 use App\Http\Controllers\GameController;
@@ -10,6 +13,7 @@ use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\SavedGameController;
 use App\Http\Controllers\SocialAuthController;
 use App\Http\Middleware\EditorAuth;
+use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -47,4 +51,13 @@ Route::prefix('editor')->name('editor.')->group(function () {
         Route::put('{level}', [EditorController::class, 'update'])->name('update');
         Route::delete('{level}', [EditorController::class, 'destroy'])->name('destroy');
     });
+});
+
+Route::prefix('admin')->name('admin.')->middleware(['auth', EnsureUserIsAdmin::class])->group(function () {
+    Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+    Route::get('users', [AdminUserController::class, 'index'])->name('users.index');
+    Route::patch('users/{user}/admin', [AdminUserController::class, 'toggleAdmin'])->name('users.toggle-admin');
+    Route::delete('users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
+    Route::get('runs', [AdminGameRunController::class, 'index'])->name('runs.index');
+    Route::delete('runs/{run}', [AdminGameRunController::class, 'destroy'])->name('runs.destroy');
 });
