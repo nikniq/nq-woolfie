@@ -67,6 +67,7 @@ const URGENT_HINTS = ['aim', 'lockdown'];
 const SPIKE_PERIOD = 2.6, SPIKE_WARN = 1.7, SPIKE_UP = 2.0; // seconds within each cycle
 const GAS_PERIOD = 4.5, GAS_ON = 1.6, GAS_RADIUS = TILE * 1.4, DIZZY_TIME = 3.5;
 const TREASURE_POINTS = 100;
+const BOBBING = new Set([KEY, TREASURE, GUN, AMMO]);
 const LEVEL_BONUS = 250;
 const MAX_LIVES = 3;
 const VIEW_DIST = 160;          // px
@@ -219,12 +220,14 @@ export async function startGame() {
             if (r(5) > 0.55) { g.strokeStyle = 'rgba(10,10,14,0.7)'; g.lineWidth = 1; g.beginPath(); const cx = 4 + Math.floor(r(6) * 20), cy = 4 + Math.floor(r(7) * 20); g.moveTo(cx + 0.5, cy + 0.5); g.lineTo(cx + 4.5, cy + 2.5); g.lineTo(cx + 6.5, cy + 6.5); g.stroke(); }
             if (r(8) > 0.75) { g.fillStyle = 'rgba(70,90,50,0.35)'; g.fillRect(Math.floor(r(9) * 26), Math.floor(r(10) * 26), 4, 2); } // moss in the mortar
         });
-        // 4 wall: stone blocks with lit top edge and dark base
+        // 4 wall top: one bevelled capstone per tile, lighter and cooler than the floor, so raised walls read at a glance
         tile(4, () => {
-            px(0, 0, TILE, TILE, '#4a4a52');
-            for (let r = 0; r < 4; r++) { const off = (r % 2) * 8; for (let b = -1; b < 3; b++) { const bx = b * 16 + off + 1, by = r * 8 + 1; px(bx, by, 14, 6, '#5e5e68'); px(bx, by, 14, 1, '#74747f'); px(bx, by + 5, 14, 1, '#44444c'); } }
-            px(0, 0, TILE, 3, '#8a8a96'); px(0, TILE - 3, TILE, 3, '#2e2e34');
-            px(0, 0, 2, TILE, '#6c6c76');
+            px(0, 0, TILE, TILE, '#24242c');
+            px(1, 1, 30, 30, '#4c4c5a');
+            px(1, 1, 30, 2, '#6a6a7c'); px(1, 1, 2, 30, '#5e5e6e');
+            px(1, 29, 30, 2, '#363642'); px(29, 1, 2, 30, '#3c3c48');
+            px(4, 4, 24, 24, '#50505e');
+            px(7, 9, 3, 1, '#44444f'); px(19, 20, 4, 1, '#44444f'); px(22, 7, 1, 1, '#5c5c6c'); px(9, 22, 1, 1, '#5c5c6c');
         });
         // 23 wall face: the lit front of a wall that borders floor below it (pseudo-3D)
         tile(23, () => {
@@ -247,37 +250,37 @@ export async function startGame() {
         // 5 door: iron-banded wood
         tile(5, () => { px(0, 0, TILE, TILE, '#2b1d10'); px(3, 1, 26, 30, '#6b4a24'); for (let i = 0; i < 4; i++) px(3 + i * 7, 1, 1, 30, '#4b3217'); px(3, 7, 26, 3, '#3a3a40'); px(3, 22, 26, 3, '#3a3a40'); px(21, 14, 4, 4, '#e8c33a'); px(22, 15, 2, 2, '#1a1a1a'); });
         // 6 key
-        tile(6, () => { px(0, 0, TILE, TILE, '#24242a'); g.fillStyle = '#ffd23a'; g.beginPath(); g.arc(11, 14, 6, 0, Math.PI * 2); g.fill(); g.fillStyle = '#24242a'; g.beginPath(); g.arc(11, 14, 2.5, 0, Math.PI * 2); g.fill(); px(15, 13, 12, 3, '#ffd23a'); px(22, 16, 2, 4, '#ffd23a'); px(26, 16, 2, 3, '#ffd23a'); px(16, 13, 10, 1, '#fff3a8'); });
+        tile(6, () => { g.clearRect(0, 0, TILE, TILE); g.fillStyle = '#ffd23a'; g.beginPath(); g.arc(11, 14, 6, 0, Math.PI * 2); g.fill(); g.fillStyle = '#24242a'; g.beginPath(); g.arc(11, 14, 2.5, 0, Math.PI * 2); g.fill(); px(15, 13, 12, 3, '#ffd23a'); px(22, 16, 2, 4, '#ffd23a'); px(26, 16, 2, 3, '#ffd23a'); px(16, 13, 10, 1, '#fff3a8'); });
         // 7 exit: stone stairway going down with blue glow
         tile(7, () => { px(0, 0, TILE, TILE, '#101826'); for (let i = 0; i < 5; i++) { px(3 + i * 2, 4 + i * 5, 26 - i * 4, 5, i % 2 ? '#2d4f86' : '#3a64a8'); px(3 + i * 2, 4 + i * 5, 26 - i * 4, 1, '#6c9be0'); } px(0, 0, TILE, 2, '#4a4a52'); });
         // 8 treasure chest
-        tile(8, () => { px(0, 0, TILE, TILE, '#24242a'); px(6, 12, 20, 14, '#7a4d1c'); px(6, 12, 20, 5, '#a8702a'); px(6, 17, 20, 1, '#3a2410'); px(14, 17, 4, 4, '#e8c33a'); px(8, 8, 16, 5, '#8c5a22'); px(9, 9, 14, 3, '#ffe066'); px(11, 6, 3, 3, '#fff3a8'); px(19, 5, 2, 2, '#fff3a8'); });
+        tile(8, () => { g.clearRect(0, 0, TILE, TILE); px(6, 12, 20, 14, '#7a4d1c'); px(6, 12, 20, 5, '#a8702a'); px(6, 17, 20, 1, '#3a2410'); px(14, 17, 4, 4, '#e8c33a'); px(8, 8, 16, 5, '#8c5a22'); px(9, 9, 14, 3, '#ffe066'); px(11, 6, 3, 3, '#fff3a8'); px(19, 5, 2, 2, '#fff3a8'); });
         // 9 hiding spot: stacked crates
-        tile(9, () => { px(0, 0, TILE, TILE, '#24242a'); const crate = (x, y, s) => { px(x, y, s, s, '#6b4a24'); px(x + 1, y + 1, s - 2, s - 2, '#8a6230'); px(x + 1, y + 1, s - 2, 1, '#a87b3e'); px(x, y, 1, s, '#4b3217'); px(x + (s >> 1), y, 1, s, '#4b3217'); px(x, y + (s >> 1), s, 1, '#4b3217'); }; crate(2, 14, 16); crate(17, 16, 13); crate(8, 2, 14); });
+        tile(9, () => { g.clearRect(0, 0, TILE, TILE); const crate = (x, y, s) => { px(x, y, s, s, '#6b4a24'); px(x + 1, y + 1, s - 2, s - 2, '#8a6230'); px(x + 1, y + 1, s - 2, 1, '#a87b3e'); px(x, y, 1, s, '#4b3217'); px(x + (s >> 1), y, 1, s, '#4b3217'); px(x, y + (s >> 1), s, 1, '#4b3217'); }; crate(2, 14, 16); crate(17, 16, 13); crate(8, 2, 14); });
         // 10 portal: stone archway into another room
         tile(10, () => { px(0, 0, TILE, TILE, '#1a1a1e'); g.fillStyle = '#5e5e68'; g.beginPath(); g.arc(16, 14, 14, Math.PI, 0); g.fill(); px(2, 14, 28, 18, '#5e5e68'); g.fillStyle = '#060608'; g.beginPath(); g.arc(16, 15, 10, Math.PI, 0); g.fill(); px(6, 15, 20, 17, '#060608'); px(13, 20, 6, 2, '#3a3a60'); px(6, 15, 20, 1, '#8a8a96'); });
 
         // 11 spikes retracted, 12 spikes warning, 13 spikes raised
-        const spikeBase = () => { px(0, 0, TILE, TILE, '#24242a'); px(2, 2, 28, 28, '#1a1a1f'); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) px(5 + i * 7, 5 + j * 7, 3, 3, '#0d0d10'); };
+        const spikeBase = () => { g.clearRect(0, 0, TILE, TILE); px(2, 2, 28, 28, '#1a1a1f'); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) px(5 + i * 7, 5 + j * 7, 3, 3, '#0d0d10'); };
         tile(11, spikeBase);
         tile(12, () => { spikeBase(); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) px(6 + i * 7, 5 + j * 7, 1, 3, '#b8b8c4'); });
         tile(13, () => { spikeBase(); g.fillStyle = '#d8d8e4'; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { const sx = 6 + i * 7, sy = 2 + j * 7; g.beginPath(); g.moveTo(sx - 2, sy + 7); g.lineTo(sx + 0.5, sy); g.lineTo(sx + 3, sy + 7); g.closePath(); g.fill(); } px(0, 0, TILE, TILE, 'rgba(255,255,255,0.05)'); });
         // 14 tripwire
-        tile(14, () => { px(0, 0, TILE, TILE, '#24242a'); px(0, 12, 3, 8, '#6b6b75'); px(29, 12, 3, 8, '#6b6b75'); px(3, 15, 26, 1, 'rgba(220,220,240,0.55)'); });
+        tile(14, () => { g.clearRect(0, 0, TILE, TILE); px(0, 12, 3, 8, '#6b6b75'); px(29, 12, 3, 8, '#6b6b75'); px(3, 15, 26, 1, 'rgba(220,220,240,0.55)'); });
         // 15 trapdoor
-        tile(15, () => { px(0, 0, TILE, TILE, '#24242a'); px(3, 3, 26, 26, '#3a2a16'); px(4, 4, 24, 24, '#5a4020'); for (let i = 0; i < 4; i++) px(4, 5 + i * 6, 24, 1, '#3a2a16'); px(6, 6, 20, 1, '#7a5a30'); px(14, 14, 4, 4, '#2a2a2e'); px(15, 15, 2, 2, '#111'); });
+        tile(15, () => { g.clearRect(0, 0, TILE, TILE); px(3, 3, 26, 26, '#3a2a16'); px(4, 4, 24, 24, '#5a4020'); for (let i = 0; i < 4; i++) px(4, 5 + i * 6, 24, 1, '#3a2a16'); px(6, 6, 20, 1, '#7a5a30'); px(14, 14, 4, 4, '#2a2a2e'); px(15, 15, 2, 2, '#111'); });
         // 16 gas vent
-        tile(16, () => { px(0, 0, TILE, TILE, '#24242a'); g.fillStyle = '#3c4a3c'; g.beginPath(); g.arc(16, 16, 11, 0, Math.PI * 2); g.fill(); g.fillStyle = '#1c261c'; g.beginPath(); g.arc(16, 16, 8, 0, Math.PI * 2); g.fill(); px(10, 15, 12, 2, '#3c4a3c'); px(15, 10, 2, 12, '#3c4a3c'); px(9, 9, 2, 2, '#5c6a5c'); px(21, 21, 2, 2, '#5c6a5c'); });
+        tile(16, () => { g.clearRect(0, 0, TILE, TILE); g.fillStyle = '#3c4a3c'; g.beginPath(); g.arc(16, 16, 11, 0, Math.PI * 2); g.fill(); g.fillStyle = '#1c261c'; g.beginPath(); g.arc(16, 16, 8, 0, Math.PI * 2); g.fill(); px(10, 15, 12, 2, '#3c4a3c'); px(15, 10, 2, 12, '#3c4a3c'); px(9, 9, 2, 2, '#5c6a5c'); px(21, 21, 2, 2, '#5c6a5c'); });
         // 17 crumbling floor, 18 pit
         tile(17, () => { px(0, 0, TILE, TILE, '#2a2a30'); g.strokeStyle = '#111'; g.lineWidth = 1; g.beginPath(); g.moveTo(4, 2); g.lineTo(14, 12); g.lineTo(10, 20); g.lineTo(18, 30); g.moveTo(14, 12); g.lineTo(26, 8); g.moveTo(10, 20); g.lineTo(2, 24); g.moveTo(18, 22); g.lineTo(28, 26); g.stroke(); px(1, 1, 14, 14, 'rgba(0,0,0,0.12)'); });
         tile(18, () => { px(0, 0, TILE, TILE, '#050507'); px(0, 0, TILE, 3, '#1d1d22'); px(0, 0, 3, TILE, '#1a1a1f'); px(0, 3, TILE, 5, 'rgba(60,60,70,0.25)'); });
 
         // 19 war plans (a folder with a red seal), 20 pistol, 21 ammo box, 22 prisoner cell
-        tile(19, () => { px(0, 0, TILE, TILE, '#24242a'); px(7, 6, 18, 22, '#d8cfae'); px(7, 6, 18, 3, '#b8a97a'); px(10, 12, 12, 1, '#6a6a6a'); px(10, 15, 12, 1, '#6a6a6a'); px(10, 18, 8, 1, '#6a6a6a'); g.fillStyle = '#c33'; g.beginPath(); g.arc(20, 23, 3, 0, Math.PI * 2); g.fill(); });
-        tile(20, () => { px(0, 0, TILE, TILE, '#24242a'); px(6, 12, 20, 5, '#2a2a30'); px(7, 13, 18, 1, '#55555f'); px(8, 16, 7, 10, '#3a2a16'); px(9, 17, 5, 8, '#5a4020'); px(14, 17, 4, 4, '#2a2a30'); px(24, 12, 3, 3, '#1a1a1e'); });
-        tile(21, () => { px(0, 0, TILE, TILE, '#24242a'); px(7, 11, 18, 14, '#4a5a3a'); px(7, 11, 18, 3, '#6a7a4a'); px(9, 16, 14, 6, '#2a2a30'); for (let i = 0; i < 4; i++) px(10 + i * 3.5, 17, 2, 4, '#d8b860'); });
-        tile(32, () => { px(0, 0, TILE, TILE, '#24242a'); px(5, 9, 22, 18, '#5a3a1a'); px(5, 9, 22, 7, '#7a5428'); px(5, 15, 22, 2, '#3a3a40'); px(5, 22, 22, 2, '#3a3a40'); px(14, 16, 4, 5, '#8a8a96'); px(15, 17, 2, 2, '#111'); px(7, 10, 18, 1, '#9a7448'); });
-        tile(34, () => { px(0, 0, TILE, TILE, '#24242a'); px(8, 5, 16, 22, '#3a3f4a'); px(8, 5, 16, 2, '#5a6070'); px(10, 9, 12, 14, '#22252c'); px(12, 11, 3, 4, '#e8c33a'); px(17, 11, 3, 4, '#e8c33a'); px(12, 17, 3, 4, '#b03030'); px(17, 17, 3, 4, '#e8c33a'); px(15, 27, 2, 5, '#111'); });
+        tile(19, () => { g.clearRect(0, 0, TILE, TILE); px(7, 6, 18, 22, '#d8cfae'); px(7, 6, 18, 3, '#b8a97a'); px(10, 12, 12, 1, '#6a6a6a'); px(10, 15, 12, 1, '#6a6a6a'); px(10, 18, 8, 1, '#6a6a6a'); g.fillStyle = '#c33'; g.beginPath(); g.arc(20, 23, 3, 0, Math.PI * 2); g.fill(); });
+        tile(20, () => { g.clearRect(0, 0, TILE, TILE); px(6, 12, 20, 5, '#2a2a30'); px(7, 13, 18, 1, '#55555f'); px(8, 16, 7, 10, '#3a2a16'); px(9, 17, 5, 8, '#5a4020'); px(14, 17, 4, 4, '#2a2a30'); px(24, 12, 3, 3, '#1a1a1e'); });
+        tile(21, () => { g.clearRect(0, 0, TILE, TILE); px(7, 11, 18, 14, '#4a5a3a'); px(7, 11, 18, 3, '#6a7a4a'); px(9, 16, 14, 6, '#2a2a30'); for (let i = 0; i < 4; i++) px(10 + i * 3.5, 17, 2, 4, '#d8b860'); });
+        tile(32, () => { g.clearRect(0, 0, TILE, TILE); px(5, 9, 22, 18, '#5a3a1a'); px(5, 9, 22, 7, '#7a5428'); px(5, 15, 22, 2, '#3a3a40'); px(5, 22, 22, 2, '#3a3a40'); px(14, 16, 4, 5, '#8a8a96'); px(15, 17, 2, 2, '#111'); px(7, 10, 18, 1, '#9a7448'); });
+        tile(34, () => { g.clearRect(0, 0, TILE, TILE); px(8, 5, 16, 22, '#3a3f4a'); px(8, 5, 16, 2, '#5a6070'); px(10, 9, 12, 14, '#22252c'); px(12, 11, 3, 4, '#e8c33a'); px(17, 11, 3, 4, '#e8c33a'); px(12, 17, 3, 4, '#b03030'); px(17, 17, 3, 4, '#e8c33a'); px(15, 27, 2, 5, '#111'); });
         tile(33, () => { px(0, 0, TILE, TILE, '#4a4a3a'); for (let r = 0; r < 4; r++) { const off = (r % 2) * 8; for (let b = -1; b < 3; b++) { const bx = b * 16 + off + 1, by = r * 8 + 1; px(bx, by, 14, 6, '#5e5a48'); px(bx, by, 14, 1, '#74705c'); } } g.strokeStyle = '#111'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(6, 2); g.lineTo(14, 12); g.lineTo(11, 20); g.lineTo(18, 30); g.moveTo(14, 12); g.lineTo(24, 9); g.moveTo(11, 20); g.lineTo(3, 23); g.moveTo(18, 24); g.lineTo(27, 27); g.stroke(); g.lineWidth = 1; });
         tile(22, () => { px(0, 0, TILE, TILE, '#1a1a1e'); px(10, 9, 12, 14, '#5a4a3a'); px(12, 5, 8, 6, '#e8b990'); px(12, 4, 8, 2, '#3a2a16'); for (let i = 0; i < 5; i++) px(3 + i * 6, 2, 2, 28, '#7a7a86'); px(2, 2, 28, 2, '#8a8a96'); px(2, 28, 28, 2, '#8a8a96'); });
 
@@ -1344,6 +1347,7 @@ export async function startGame() {
                 const faces = tileAt(x, y + 1) !== WALL;
                 blit({ x: faces ? fr.wallFace : fr.tiles[WALL], y: 0 }, px, py);
                 if (faces) { const h = hash(x * 11 + levelIndex, y * 17); if (h > 0.84) blit({ x: fr.decor[Math.floor((h - 0.84) / 0.16 * 3) % 3], y: 0 }, px, py); }
+                if (!faces && tileAt(x, y - 1) !== WALL) { ctx.fillStyle = 'rgba(190,190,215,0.35)'; ctx.fillRect(px, py, TILE, 2); }
                 if (tileAt(x - 1, y) !== WALL) { ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(px, py, 2, TILE); }
                 if (tileAt(x + 1, y) !== WALL) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(px + TILE - 2, py, 2, TILE); }
                 continue;
@@ -1367,6 +1371,11 @@ export async function startGame() {
                 else { const k = Math.min(1, (time - doorsOpenedAt) / 0.6); ctx.save(); ctx.beginPath(); ctx.rect(px, py, TILE, TILE); ctx.clip(); blit({ x: fr.tiles[DOOR], y: 0 }, px, py - k * TILE); ctx.restore(); blit({ x: fr.doorOpen, y: 0 }, px, py); }
             }
             else if (t === SPIKES) { const st = spikeState(x, y); blit({ x: fr.spikes[st === 'up' ? 2 : st === 'warn' ? 1 : 0], y: 0 }, px, py); }
+            else if (BOBBING.has(t)) { // loose pickups float gently above a soft shadow
+                const bob = Math.round(Math.sin(time * 3 + x * 1.7 + y) * 1.5 + 1.5);
+                ctx.fillStyle = `rgba(0,0,0,${0.35 - bob * 0.04})`; ctx.beginPath(); ctx.ellipse(px + 16, py + 27, 8 - bob * 0.6, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+                blit({ x: fr.tiles[t], y: 0 }, px, py - bob);
+            }
             else if (t !== FLOOR) blit({ x: fr.tiles[t], y: 0 }, px, py);
             if (t === PLANS && !player.code) { ctx.fillStyle = 'rgba(40,40,48,0.82)'; ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); ctx.strokeStyle = '#8a8a96'; ctx.strokeRect(px + 4.5, py + 4.5, TILE - 9, TILE - 9); ctx.fillStyle = '#e8c33a'; ctx.fillRect(px + 12, py + 15, 8, 7); ctx.strokeStyle = '#e8c33a'; ctx.beginPath(); ctx.arc(px + 16, py + 15, 3, Math.PI, 0); ctx.stroke(); }
             if (t === TREASURE || t === KEY || (t === PLANS && player.code)) { const pulse = 0.25 + 0.2 * Math.sin(time * 5 + x); ctx.fillStyle = `rgba(255,220,80,${pulse * 0.25})`; ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8); }
